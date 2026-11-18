@@ -1,0 +1,90 @@
+# 🎬 AniSync — MyAnimeList Auto Tracker
+
+> Automatic anime episode tracker for **Chrome** and **Firefox** that syncs watched episodes to **MyAnimeList** completely in the background.
+
+---
+
+## ✨ Features
+
+- **🚀 Set-and-Forget Background Sync**: Watch anime on any supported streaming site — AniSync detects the show, watches playback progress, and updates your MyAnimeList account automatically when you cross the watch threshold (default 80%).
+- **🔒 100% Client-Side & Private**: No backend server or external database required. Uses official MyAnimeList OAuth 2.0 PKCE with client-side token storage in `chrome.storage.local`.
+- **📺 Dynamic Streaming Site Support**: Designed to work with dynamically loaded site definitions (via Cloudflare / remote config) and universal HTML5 video detection.
+- **⚡ Iframe Video Support**: Detects players embedded inside iframes (MegaCloud, Vidstreaming, RapidCloud, StreamTape, etc.) via cross-frame postMessage synchronization.
+- **📊 Interactive Popup UI**:
+  - Live episode watch progress bar in real-time.
+  - "Force Sync Now" button to manually update anytime.
+  - Recent sync history with direct links to MAL entries.
+  - Customizable watch threshold slider (50% - 95%) and notification toggles.
+- **🦊 Cross-Browser Compatible**: Manifest V3 compliant for Google Chrome, Brave, Edge, and Mozilla Firefox.
+
+---
+
+## 🛠️ How to Load and Test in Chrome
+
+1. Open Google Chrome and navigate to:
+   ```text
+   chrome://extensions/
+   ```
+2. Enable **Developer mode** using the toggle switch in the top-right corner.
+3. Click the **Load unpacked** button in the top-left corner.
+4. Select the project folder:
+   ```text
+   C:\Users\santa\OneDrive\Desktop\anisync extension
+   ```
+5. You will see **AniSync - MyAnimeList Auto Tracker** loaded!
+6. Click the extension icon in your toolbar and click **"Log in with MyAnimeList"**.
+7. Authorize your MAL account (`Zatch_bell_007`), and you're ready to stream!
+
+---
+
+## 🦊 How to Load and Test in Firefox
+
+1. Open Firefox and navigate to:
+   ```text
+   about:debugging#/runtime/this-firefox
+   ```
+2. Click **Load Temporary Add-on...**
+3. Select the `manifest.json` file inside the `anisync extension` folder.
+4. The extension will load and function with the same MAL credentials!
+
+---
+
+## 📂 Project Architecture
+
+```
+anisync extension/
+├── manifest.json              # Manifest V3 configuration with fixed PKCE key
+├── CHROMEWEBSTORE.md          # Store listing & permission justifications
+├── icons/                     # Extension icons (16px, 48px, 128px)
+│   ├── icon16.png
+│   ├── icon48.png
+│   └── icon128.png
+├── background/
+│   ├── mal-client.js          # MAL REST API client with OAuth 2.0 PKCE
+│   └── service-worker.js      # Background worker handling syncs & notifications
+├── content/
+│   └── detector.js            # Video player observer & anime metadata scraper
+└── popup/
+    ├── popup.html             # Extension popup structure
+    ├── popup.css              # Modern dark anime theme
+    └── popup.js               # Reactive popup logic & settings
+```
+
+---
+
+## ☁️ Cloudflare Dynamic Backend
+
+- **Live Worker Root**: `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/`
+- **Sites API**: `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/sites` (109 sites with mirrors and proxies)
+- **Domains API**: `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/domains` (324 unique domains)
+- **Source**: Extracted directly from [EverythingMoe](https://everythingmoe.com/) index, covering all 109 anime streaming sites and their mirror/proxy networks.
+- **Advantage**: Whenever anime streaming domains change (e.g. from `.to` to `.tv` or new proxies appear), you simply update the Cloudflare Worker or run `node scripts/fetch-everythingmoe.js` without having to resubmit the extension to the Chrome Web Store!
+- **Local Code**: Stored in `cloudflare-worker/` with `wrangler.toml` and `sites.json`.
+
+---
+
+## 🔑 Registered MAL Client Information
+
+- **Client ID**: `YOUR_MAL_CLIENT_ID`
+- **Application Type**: `Other` (Public PKCE client)
+- **App Redirect URL**: `https://YOUR-EXTENSION-ID.chromiumapp.org/`
