@@ -32,6 +32,8 @@ document.addEventListener('DOMContentLoaded', async () => {
   const thresholdSlider = document.getElementById('threshold-slider');
   const thresholdVal = document.getElementById('threshold-val');
   const toggleNotifications = document.getElementById('toggle-notifications');
+  const toggleAutoStatus = document.getElementById('toggle-auto-status');
+  const btnClearCache = document.getElementById('btn-clear-cache');
 
   let currentPlaybackData = null;
 
@@ -81,6 +83,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       thresholdSlider.value = settings.syncThreshold || 80;
       thresholdVal.textContent = `${thresholdSlider.value}%`;
       toggleNotifications.checked = settings.notificationsEnabled !== false;
+      toggleAutoStatus.checked = settings.autoUpdateStatus !== false;
     }
   }
 
@@ -248,6 +251,28 @@ document.addEventListener('DOMContentLoaded', async () => {
     const { settings = {} } = await chrome.storage.local.get('settings');
     settings.notificationsEnabled = e.target.checked;
     await chrome.storage.local.set({ settings });
+  });
+
+  // Auto status toggle change
+  toggleAutoStatus.addEventListener('change', async (e) => {
+    const { settings = {} } = await chrome.storage.local.get('settings');
+    settings.autoUpdateStatus = e.target.checked;
+    await chrome.storage.local.set({ settings });
+  });
+
+  // Clear cached title matches so the next sync re-searches MAL
+  btnClearCache.addEventListener('click', async () => {
+    btnClearCache.disabled = true;
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'CLEAR_MATCH_CACHE' });
+      btnClearCache.textContent = res?.success ? 'Cleared ✓' : 'Failed';
+    } catch (err) {
+      btnClearCache.textContent = 'Failed';
+    }
+    setTimeout(() => {
+      btnClearCache.disabled = false;
+      btnClearCache.textContent = 'Reset';
+    }, 2000);
   });
 
   // Initial load

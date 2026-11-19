@@ -27,13 +27,10 @@
    ```
 2. Enable **Developer mode** using the toggle switch in the top-right corner.
 3. Click the **Load unpacked** button in the top-left corner.
-4. Select the project folder:
-   ```text
-   C:\Users\santa\OneDrive\Desktop\anisync extension
-   ```
+4. Select the project folder (the one containing `manifest.json`).
 5. You will see **AniSync - MyAnimeList Auto Tracker** loaded!
 6. Click the extension icon in your toolbar and click **"Log in with MyAnimeList"**.
-7. Authorize your MAL account (`Zatch_bell_007`), and you're ready to stream!
+7. Authorize your MAL account, and you're ready to stream!
 
 ---
 
@@ -45,7 +42,17 @@
    ```
 2. Click **Load Temporary Add-on...**
 3. Select the `manifest.json` file inside the `anisync extension` folder.
-4. The extension will load and function with the same MAL credentials!
+4. Firefox treats MV3 host permissions as opt-in: open the add-on's **Permissions** tab and allow **Access your data for all websites**, otherwise the detector never runs.
+5. **OAuth redirect:** Firefox uses a different redirect URL than Chrome. Run `browser.identity.getRedirectURL()` in the add-on's background console and register that URL in your MAL API app (or create a separate MAL client for Firefox if only one redirect is allowed).
+
+Requires Firefox 121+ (for `background.scripts` alongside `service_worker`).
+
+## 🎯 How Detection Works
+
+- The detector only activates on **supported streaming domains** (the Cloudflare list, with a bundled `cloudflare-worker/sites.json` fallback).
+- Player iframes on any embed domain report progress only when their tab is a supported site, relayed through the extension so pages can't fake it.
+- Videos shorter than 2 minutes (ads, previews) never trigger a sync.
+- A title is only synced if a MyAnimeList result is a confident fuzzy match; otherwise nothing is written. Use **Preferences → Wrong Anime Matched? → Reset** to clear saved matches.
 
 ---
 

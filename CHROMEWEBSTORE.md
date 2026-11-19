@@ -18,7 +18,7 @@ Tired of forgetting to update your episode list after a binge session? With AniS
 Key Features:
 - Automatic Episode Tracking: Detects the anime title and episode directly from video players.
 - Smart Sync Threshold: Updates your list only when you've actually watched the episode.
-- Zero Server/Database Dependence: Runs completely client-side in your browser using official MyAnimeList OAuth 2.0 PKCE.
+- No Account Server or Database: Your data stays client-side in your browser using official MyAnimeList OAuth 2.0 PKCE.
 - Live Status Popup: See the currently playing episode and real-time watch percentage at a glance.
 - Cross-Platform Support: Built for Chrome and fully compatible with Firefox.
 
@@ -59,15 +59,18 @@ English
 | `storage` | permissions | Stores the user's OAuth tokens and sync preferences locally on their device. |
 | `identity` | permissions | Initiates official MyAnimeList OAuth 2.0 authorization dialog via `launchWebAuthFlow`. |
 | `notifications` | permissions | Notifies the user when an episode has successfully synced to MyAnimeList. |
-| `alarms` | permissions | Schedules background token validity checks. |
+| `alarms` | permissions | Refreshes the supported streaming-site list every 12 hours and clears the toolbar badge after a sync. |
 | `https://api.myanimelist.net/*` | host_permissions | Communicates with the official MyAnimeList REST API to search anime and update watch lists. |
 | `https://myanimelist.net/*` | host_permissions | Handles user authentication and token exchange endpoints. |
-| `scripting` | permissions | Enables dynamic execution of playback observers on anime streaming sites. |
+| `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/*` | host_permissions | Downloads the public list of supported streaming domains. No user data is sent. |
+| `*://*/*` | content_scripts | Video players are embedded in iframes hosted on many changing third-party domains, so the detector must be able to load in any frame. It stays inactive unless the tab's top-level site is on the supported streaming list, and it only reads the page title, episode markers and `<video>` playback position. |
 
 ---
 
 ## Privacy & Data Use
 
 ### Data Collection
+- Website Content: On supported streaming sites only, the page title, episode number and video playback position are read locally to detect what is being watched.
 - User Activity: Episode watch count and anime title (transmitted solely to `api.myanimelist.net` to update the user's own list).
+- Remote Config: The extension downloads a public site list from its Cloudflare Worker; no browsing data or identifiers are sent with that request.
 - Personal Data: None collected by the developer or third parties.

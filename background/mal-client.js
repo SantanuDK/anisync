@@ -7,9 +7,14 @@ const MAL_CONFIG = {
   API_BASE: 'https://api.myanimelist.net/v2'
 };
 
+const SEARCH_CACHE_PREFIX = 'cache_anime_';
+const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
+const MIN_MATCH_SCORE = 0.6; // Dice similarity required to accept a search result
+
 class MalClient {
   constructor() {
     this.redirectUri = chrome.identity.getRedirectURL();
+    this._refreshPromise = null;
   }
 
   // Generate 64-char URL-safe cryptographically random string for PKCE
@@ -24,7 +29,7 @@ class MalClient {
     return result;
   }
 
-  // Initiate OAuth 2.0 PKCE login flow
+  // Initiate OAuth 2.0 PKCE login flow (MAL only supports the "plain" method)
   async login() {
     const codeVerifier = this.generateCodeVerifier();
     await chrome.storage.local.set({ pkce_code_verifier: codeVerifier });
@@ -112,23 +117,31 @@ class MalClient {
     return tokenPayload;
   }
 
-  // Refresh access token if expired or about to expire
+  // Return a valid access token, refreshing it if expired.
+  // Concurrent callers share a single in-flight refresh so a rotated
+  // refresh token is never used twice.
   async getValidAccessToken() {
     const { mal_tokens } = await chrome.storage.local.get('mal_tokens');
     if (!mal_tokens || !mal_tokens.access_token) {
       return null;
     }
 
-    // Still valid
     if (mal_tokens.expires_at && Date.now() < mal_tokens.expires_at) {
       return mal_tokens.access_token;
     }
 
-    // Needs refresh
     if (!mal_tokens.refresh_token) {
       return null;
     }
 
+    if (!this._refreshPromise) {
+      this._refreshPromise = this._refreshToken(mal_tokens)
+        .finally(() => { this._refreshPromise = null; });
+    }
+    return this._refreshPromise;
+  }
+
+  async _refreshToken(mal_tokens) {
     const body = new URLSearchParams({
       client_id: MAL_CONFIG.CLIENT_ID,
       grant_type: 'refresh_token',
@@ -144,9 +157,13 @@ class MalClient {
     });
 
     if (!res.ok) {
-      // Refresh failed, user must log in again
-      await chrome.storage.local.remove(['mal_tokens', 'mal_user_profile']);
-      return null;
+      // Only an explicit rejection of the refresh token means the session is dead.
+      // Server errors / rate limits should not log the user out.
+      if (res.status === 400 || res.status === 401) {
+        await chrome.storage.local.remove(['mal_tokens', 'mal_user_profile']);
+        return null;
+      }
+      throw new Error(`Token refresh failed: ${res.status}`);
     }
 
     const data = await res.json();
@@ -184,7 +201,7 @@ class MalClient {
   normalizeTitle(rawTitle) {
     if (!rawTitle) return '';
     return rawTitle
-      .replace(/\s*\(?(?:TV|Dub|Sub|Official|1080p|720p|HD|Uncensored)\)?/gi, '')
+      .replace(/\s*\(?\b(?:TV|Dub|Sub|Official|1080p|720p|HD|Uncensored)\b\)?/gi, '')
       .replace(/\s*-\s*Season\s*(\d+)/gi, ' Season $1')
       .replace(/\s*-\s*Part\s*(\d+)/gi, ' Part $1')
       .replace(/[:_]/g, ' ')
@@ -192,7 +209,40 @@ class MalClient {
       .trim();
   }
 
-  // Search anime on MAL by title
+  // Tokenize a title for fuzzy comparison
+  _tokens(str) {
+    return (str || '')
+      .toLowerCase()
+      .normalize('NFKD').replace(/[̀-ͯ]/g, '')
+      .replace(/(\d+)(?:st|nd|rd|th)\b/g, '$1')
+      .replace(/[^a-z0-9\s]/g, ' ')
+      .split(/\s+/)
+      .filter(Boolean);
+  }
+
+  // Sørensen–Dice similarity on word tokens (0..1)
+  _similarity(a, b) {
+    const ta = this._tokens(a);
+    const tb = this._tokens(b);
+    if (ta.length === 0 || tb.length === 0) return 0;
+    const pool = [...tb];
+    let common = 0;
+    for (const t of ta) {
+      const idx = pool.indexOf(t);
+      if (idx !== -1) {
+        common++;
+        pool.splice(idx, 1);
+      }
+    }
+    return (2 * common) / (ta.length + tb.length);
+  }
+
+  _cacheKey(cleanTitle) {
+    return `${SEARCH_CACHE_PREFIX}${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+  }
+
+  // Search anime on MAL by title. Returns { id, title, num_episodes, main_picture } or null
+  // when no result is a confident match.
   async searchAnime(title) {
     const token = await this.getValidAccessToken();
     if (!token) throw new Error('Not authenticated with MyAnimeList');
@@ -200,14 +250,15 @@ class MalClient {
     const cleanTitle = this.normalizeTitle(title);
     if (!cleanTitle) throw new Error('Empty anime title');
 
-    // Check memory cache in storage
-    const cacheKey = `cache_anime_${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
-    const cached = await chrome.storage.local.get(cacheKey);
-    if (cached[cacheKey]) {
-      return cached[cacheKey];
+    const cacheKey = this._cacheKey(cleanTitle);
+    const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
+    if (cached && cached.node && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) {
+      return cached.node;
     }
 
-    const url = `${MAL_CONFIG.API_BASE}/anime?q=${encodeURIComponent(cleanTitle)}&limit=5&fields=id,title,alternative_titles,num_episodes,my_list_status,main_picture`;
+    // MAL rejects queries longer than 64 characters
+    const query = cleanTitle.slice(0, 64);
+    const url = `${MAL_CONFIG.API_BASE}/anime?q=${encodeURIComponent(query)}&limit=10&fields=id,title,alternative_titles,num_episodes,main_picture`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -223,35 +274,76 @@ class MalClient {
       return null;
     }
 
-    // Find the best match
     const candidate = this.selectBestMatch(cleanTitle, data.data);
     if (candidate) {
-      // Cache the result for 7 days
-      await chrome.storage.local.set({ [cacheKey]: candidate });
+      const node = {
+        id: candidate.id,
+        title: candidate.title,
+        num_episodes: candidate.num_episodes || 0,
+        main_picture: candidate.main_picture || null
+      };
+      await chrome.storage.local.set({ [cacheKey]: { node, cachedAt: Date.now() } });
+      return node;
     }
-    return candidate;
+    return null;
   }
 
-  // Compare candidates to find closest matching anime
+  // Pick the result whose title (or any alternative title) is most similar to the query.
+  // Returns null if nothing clears MIN_MATCH_SCORE, so we never guess.
   selectBestMatch(query, items) {
-    const qLower = query.toLowerCase();
+    let best = null;
+    let bestScore = 0;
 
     for (const item of items) {
       const node = item.node;
-      const titleLower = node.title.toLowerCase();
-      const enTitle = node.alternative_titles?.en?.toLowerCase() || '';
+      const alts = node.alternative_titles || {};
+      const names = [node.title, alts.en, alts.ja, ...(alts.synonyms || [])].filter(Boolean);
 
-      if (titleLower === qLower || enTitle === qLower) {
-        return node;
+      for (const name of names) {
+        const score = this._similarity(query, name);
+        if (score > bestScore) {
+          bestScore = score;
+          best = node;
+        }
       }
+      if (bestScore === 1) break;
     }
 
-    // Default to first result if close enough
-    return items[0]?.node || null;
+    return bestScore >= MIN_MATCH_SCORE ? best : null;
   }
 
-  // Update watch progress of an anime on user's MAL list
-  async updateWatchProgress(animeId, episodeNumber, totalEpisodes = 0) {
+  // Remove all cached title -> anime matches
+  async clearSearchCache() {
+    const all = await chrome.storage.local.get(null);
+    const keys = Object.keys(all).filter(k => k.startsWith(SEARCH_CACHE_PREFIX) || k.startsWith('last_sync_'));
+    if (keys.length > 0) await chrome.storage.local.remove(keys);
+    return keys.length;
+  }
+
+  // Fetch the user's current list status for an anime (always fresh, never cached)
+  async getListStatus(animeId) {
+    const token = await this.getValidAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/anime/${animeId}?fields=num_episodes,my_list_status`, {
+      headers: {
+        'Authorization': `Bearer ${token}`
+      }
+    });
+
+    if (!res.ok) {
+      throw new Error(`Failed to fetch list status: ${res.status}`);
+    }
+
+    const data = await res.json();
+    return {
+      numEpisodes: data.num_episodes || 0,
+      listStatus: data.my_list_status || null
+    };
+  }
+
+  // Update watch progress. `status` is optional; omit it to leave the list status unchanged.
+  async updateWatchProgress(animeId, episodeNumber, status = null) {
     const token = await this.getValidAccessToken();
     if (!token) throw new Error('Not authenticated');
 
@@ -260,16 +352,8 @@ class MalClient {
       throw new Error(`Invalid episode number: ${episodeNumber}`);
     }
 
-    // Determine status: completed if final episode, otherwise watching
-    let status = 'watching';
-    if (totalEpisodes > 0 && ep >= totalEpisodes) {
-      status = 'completed';
-    }
-
-    const body = new URLSearchParams({
-      num_watched_episodes: String(ep),
-      status: status
-    });
+    const body = new URLSearchParams({ num_watched_episodes: String(ep) });
+    if (status) body.set('status', status);
 
     const res = await fetch(`${MAL_CONFIG.API_BASE}/anime/${animeId}/my_list_status`, {
       method: 'PATCH',
