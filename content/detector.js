@@ -47,10 +47,11 @@
   const NOT_EPISODE_RE = /\b(reactions?|reacts?|reacting|review|recap|explained|breakdown|analysis|amv|trailer|teaser|pv|preview|opening|ending|op|ed|ost|soundtrack|clip|scene|edit|shorts|tier list|top \d+|podcast|cosplay|abridged|parody|fan ?made|fan ?dub|live[- ]action|full movie|compilation)\b|\bepisodes?\s*\d+\s*(?:to|-|–|~)\s*\d+/i;
 
   // General video platforms host lots of fan content around anime. There, only
-  // episode-length videos count (official uploads are ~20-25 min).
+  // episode-length videos count (official uploads are ~20-25 min; double-length
+  // specials like Oshi no Ko ep 1 run ~90 min). Longer uploads are compilations.
   const GENERAL_PLATFORMS = ['youtube.com', 'bilibili.com', 'bilibili.tv', 'dailymotion.com'];
   const PLATFORM_MIN_SECONDS = 15 * 60;
-  const PLATFORM_MAX_SECONDS = 40 * 60;
+  const PLATFORM_MAX_SECONDS = 100 * 60;
 
   function isEpisodeLength(duration) {
     const onPlatform = GENERAL_PLATFORMS.some(d => hostMatches(window.location.hostname, d));
