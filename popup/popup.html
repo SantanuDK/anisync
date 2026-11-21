@@ -20,6 +20,27 @@
       </div>
     </header>
 
+    <!-- Sites that synced from another computer but still need access here -->
+    <div id="site-access-banner" class="card warn-card hidden">
+      <div class="setting-desc"><span id="site-access-count">0</span> of your sites need access on this browser.</div>
+      <button id="btn-grant-all" class="btn btn-secondary btn-sm">Grant access</button>
+    </div>
+
+    <!-- Current Site -->
+    <section id="site-section" class="section hidden">
+      <div class="section-title">THIS SITE</div>
+      <div class="card site-card">
+        <div class="site-row">
+          <div class="site-info">
+            <div id="site-host" class="site-host">--</div>
+            <div id="site-state" class="setting-desc">--</div>
+          </div>
+          <button id="btn-site-toggle" class="btn btn-secondary btn-sm hidden">Enable</button>
+        </div>
+        <div id="site-hint" class="setting-desc site-hint hidden">Tip: start the video first, so AniSync can also get access to the video player.</div>
+      </div>
+    </section>
+
     <!-- Logged Out View -->
     <div id="view-logged-out" class="view hidden">
       <div class="hero-card">
@@ -128,10 +149,29 @@
           </div>
           <div class="setting-row">
             <div>
+              <div class="setting-name">Use AniSkip Ending Times</div>
+              <div class="setting-desc">Sync when the ending starts, using community timestamps (sends only the anime ID and episode number to AniSkip)</div>
+            </div>
+            <label class="toggle-switch">
+              <input type="checkbox" id="toggle-aniskip" checked>
+              <span class="toggle-slider"></span>
+            </label>
+          </div>
+          <div class="setting-row">
+            <div>
               <div class="setting-name">Wrong Anime Matched?</div>
               <div class="setting-desc">Forget saved title matches and re-search MAL</div>
             </div>
             <button id="btn-clear-cache" class="btn btn-secondary btn-sm">Reset</button>
+          </div>
+          <div class="setting-row setting-col">
+            <div>
+              <div class="setting-name">Your Sites</div>
+              <div class="setting-desc">Sites you enabled — synced with your browser account</div>
+            </div>
+            <div id="user-sites-list" class="user-sites-list">
+              <div class="empty-state-sm">No sites added yet.</div>
+            </div>
           </div>
         </div>
       </section>

@@ -1369,7 +1369,7 @@ const DATA = {
       ]
     },
     {
-      "id": "animedunya",
+      "id": "anime-dunya",
       "name": "Anime-Dunya",
       "primaryUrl": "https://anime-dunya.com/",
       "domains": [
@@ -1395,7 +1395,7 @@ const DATA = {
         "anime-world.cc",
         "anime-world.co",
         "anime-world.to",
-        "animejoker.com",
+        "animezoker.com",
         "animesalt.cx",
         "hindianimeverse.org",
         "piratexplay.cc",
@@ -1451,13 +1451,24 @@ export default {
         version: DATA.version,
         totalSites: DATA.totalSites,
         totalDomains: DATA.totalDomains,
-        endpoints: ["/sites", "/domains", "/health"]
+        endpoints: ["/sites", "/domains", "/oauth/callback"]
       }, null, 2), { headers: corsHeaders });
     }
 
     // Full sites array with proxies and mirrors
     if (url.pathname === "/sites") {
       return new Response(JSON.stringify(DATA, null, 2), { headers: corsHeaders });
+    }
+
+    // OAuth landing page for AniSync's tab-based login (Firefox / Android).
+    // The extension reads the code from this tab's URL; the page never touches it.
+    if (url.pathname === "/oauth/callback") {
+      return new Response(
+        '<!doctype html><html><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">' +
+        '<title>AniSync</title></head><body style="font-family:system-ui,sans-serif;background:#0F172A;color:#F8FAFC;text-align:center;padding-top:30vh">' +
+        '<p>Logging you in to AniSync&hellip; you can close this tab.</p></body></html>',
+        { headers: { "Content-Type": "text/html; charset=utf-8", "Cache-Control": "no-store", "Referrer-Policy": "no-referrer" } }
+      );
     }
 
     // Flat array of all supported domains and proxies

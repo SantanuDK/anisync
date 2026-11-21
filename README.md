@@ -41,11 +41,54 @@
    about:debugging#/runtime/this-firefox
    ```
 2. Click **Load Temporary Add-on...**
-3. Select the `manifest.json` file inside the `anisync extension` folder.
+3. Build the Firefox version first with `node scripts/build.js`, then select `dist/firefox/manifest.json`. (The root `manifest.json` is Chrome-only, so Chrome shows no warnings.)
 4. Firefox treats MV3 host permissions as opt-in: open the add-on's **Permissions** tab and allow **Access your data for all websites**, otherwise the detector never runs.
 5. **OAuth redirect:** Firefox uses a different redirect URL than Chrome. Run `browser.identity.getRedirectURL()` in the add-on's background console and register that URL in your MAL API app (or create a separate MAL client for Firefox if only one redirect is allowed).
 
-Requires Firefox 121+ (for `background.scripts` alongside `service_worker`).
+Requires Firefox 115+.
+
+## 🧩 Editions
+
+| | Full edition (repo root) | Store edition (`dist/chrome-store`) |
+|---|---|---|
+| Built-in sites | Full Cloudflare / EverythingMoe list | Official services only (`data/official-sites.json`) |
+| Remote site list | Yes | None |
+| Extra sites | Popup → **Enable**: added to your list instantly | Popup → **Enable**: Chrome asks permission for the site (and its video player) |
+| How to use | Load unpacked (developer mode) | Chrome Web Store |
+
+Both editions save your enabled sites in `chrome.storage.sync`, so they follow your browser account. Don't run both editions at once, or episodes sync twice.
+
+## 📦 Building Store Packages
+
+```bash
+node scripts/build.js
+```
+
+Creates `dist/anisync-chrome-<version>.zip` (Chrome Web Store, with the dev-only `key` removed) and `dist/anisync-firefox-<version>.zip` (Firefox add-on site, AMO). Bump `version` in `manifest.json` before each upload.
+
+## 📱 Firefox for Android (unsigned, developer use)
+
+Regular Firefox for Android only installs Mozilla-signed add-ons; **Firefox Nightly** can install unsigned ones.
+
+1. One-time MAL setup: add `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/oauth/callback` as a redirect URL in your MAL API app. If MAL allows only one redirect per app, create a second MAL app with that URL and set `FIREFOX_MAL_CLIENT_ID` in `scripts/build.js`.
+2. `node scripts/build.js` and copy `dist/anisync-firefox-<version>.zip` to the phone.
+3. In Firefox Nightly: open `about:config` and set `xpinstall.signatures.required` to `false`.
+4. Settings → About Firefox Nightly → tap the logo until the debug menu unlocks → Settings → **Install extension from file** → pick the zip.
+5. In the add-on's settings, allow access to all websites.
+
+On Firefox, login opens MyAnimeList in a normal tab; the tab closes itself once you're logged in (it may flash a "Not Found" page for a moment, which is harmless). Desktop notifications don't exist on Android; check the popup for recent syncs instead.
+
+## ⏱️ When an Episode Counts as Watched
+
+One rule for every length, from 2-minute shorts to 2-hour movies:
+
+1. **Is it really the episode?** The video length is compared with MyAnimeList's average episode length for that show (60%–400%). Fan edits, reactions and compilations fail this; double-length specials pass.
+2. **Where does the ending start?** From [AniSkip](https://aniskip.com) community timestamps when available, otherwise estimated from the length (≈70 s for shorts, ≈2.5 min for TV, up to 10 min for movies).
+3. **Sync** at whichever comes first: your threshold (default 80%) or the start of the ending — never before half the video.
+4. **Moved on early?** Going from episode N to N+1 of the same show after watching at least half of N also counts.
+5. **Movies:** pages without an episode number sync as episode 1 when MyAnimeList says it's a movie (or a single-episode special) and the length matches.
+
+If MyAnimeList can't be reached, the previous fixed rules are used as a fallback.
 
 ## 🎯 How Detection Works
 

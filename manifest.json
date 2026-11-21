@@ -22,11 +22,13 @@
     "storage",
     "identity",
     "notifications",
-    "alarms"
+    "alarms",
+    "activeTab"
   ],
   "host_permissions": [
     "https://api.myanimelist.net/*",
     "https://myanimelist.net/*",
+    "https://api.aniskip.com/*",
     "https://anisync-api.YOUR-SUBDOMAIN.workers.dev/*"
   ],
   "content_scripts": [
@@ -38,13 +40,6 @@
     }
   ],
   "background": {
-    "service_worker": "background/service-worker.js",
-    "scripts": ["background/mal-client.js", "background/service-worker.js"]
-  },
-  "browser_specific_settings": {
-    "gecko": {
-      "id": "anisync@extension.local",
-      "strict_min_version": "121.0"
-    }
+    "service_worker": "background/service-worker.js"
   }
 }

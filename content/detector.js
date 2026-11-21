@@ -12,6 +12,12 @@
 
   // Shorter videos (ads, trailers, previews) never count as an episode
   const MIN_EPISODE_SECONDS = 120;
+  // Endings run ~90s. On short episodes that's a big share of the runtime, so reaching
+  // the last 90s also counts as watched (with at least half the episode played).
+  const OUTRO_SECONDS = 90;
+  const OUTRO_MIN_PERCENT = 50;
+  // Pages without an episode number are only considered when the video is movie-length
+  const MOVIE_MIN_SECONDS = 30 * 60;
   const STATUS_THROTTLE_MS = 3000;
   const IFRAME_THROTTLE_MS = 2000;
   const SYNC_RETRY_MS = 60 * 1000;
@@ -44,7 +50,7 @@
 
   // Videos about an episode rather than the episode itself (matters on YouTube/Bilibili,
   // which are on the supported list because of official anime channels)
-  const NOT_EPISODE_RE = /\b(reactions?|reacts?|reacting|review|recap|explained|breakdown|analysis|amv|trailer|teaser|pv|preview|opening|ending|op|ed|ost|soundtrack|clip|scene|edit|shorts|tier list|top \d+|podcast|cosplay|abridged|parody|fan ?made|fan ?dub|live[- ]action|full movie|compilation)\b|\bepisodes?\s*\d+\s*(?:to|-|–|~)\s*\d+/i;
+  const NOT_EPISODE_RE = /\b(reactions?|reacts?|reacting|review|recap|explained|breakdown|analysis|amv|trailer|teaser|pv|preview|opening|ending|op|ed|ost|soundtrack|clip|scene|edit|shorts|tier list|top \d+|podcast|cosplay|abridged|parody|fan ?made|fan ?dub|live[- ]action|compilation)\b|\bepisodes?\s*\d+\s*(?:to|-|–|~)\s*\d+/i;
 
   // General video platforms host lots of fan content around anime. There, only
   // episode-length videos count (official uploads are ~20-25 min; double-length
@@ -152,10 +158,14 @@
 
     if (NOT_EPISODE_RE.test(document.title) || NOT_EPISODE_RE.test(h1Text)) return null;
 
+    // 6. No episode number anywhere: keep a title-only candidate. It may be a movie;
+    //    the background confirms with MyAnimeList (type + length) before anything syncs.
+    if (!title && document.title) title = stripSiteSuffix(document.title.trim());
+
     if (title) title = cleanTitle(title);
 
-    if (title && title.length > 1 && episode) {
-      return { title, episode };
+    if (title && title.length > 1) {
+      return { title, episode: episode || null };
     }
     return null;
   }
@@ -300,42 +310,115 @@
         currentMeta = meta;
         syncState = 'idle';
         retryAt = 0;
+        resetPlan();
       }
       return currentMeta;
     }
 
-    function handleProgress({ percentage, currentTime, duration, isFinished }) {
+    // ----- Sync plan from the background (MAL length/type + ending start) -----
+    let plan = null;
+    let planState = 'none'; // none | pending | ready | unavailable
+    let planKey = '';
+    let lastProgress = null;
+
+    function resetPlan() {
+      plan = null;
+      planState = 'none';
+      planKey = '';
+    }
+
+    function requestPlan(meta, duration) {
+      // Re-plan if the duration changes a lot (e.g. a pre-roll ad, then the episode)
+      const key = `${meta.title}#${meta.episode}#${Math.round(duration / 30)}`;
+      if (key === planKey) return;
+      planKey = key;
+      planState = 'pending';
+      plan = null;
+
+      chrome.runtime.sendMessage({
+        type: 'GET_SYNC_PLAN',
+        data: { animeTitle: meta.title, episodeNumber: meta.episode, duration }
+      }).then((res) => {
+        if (planKey !== key) return;
+        if (res?.success && res.plan?.available) {
+          plan = res.plan;
+          planState = 'ready';
+          if (!plan.eligible) console.log(`[AniSync] Not syncing "${meta.title}": ${plan.reason}`);
+        } else {
+          planState = 'unavailable';
+        }
+        // Re-evaluate right away (the user may already be past the sync point and paused)
+        if (lastProgress) handleProgress(lastProgress);
+      }).catch(() => {
+        if (planKey !== key) return;
+        planState = 'unavailable';
+        if (lastProgress) handleProgress(lastProgress);
+      });
+    }
+
+    function handleProgress(progress) {
+      const { percentage, currentTime, duration, isFinished } = progress;
+      lastProgress = progress;
       const meta = currentMeta || refreshMeta();
       if (!meta) return;
 
+      // A page without an episode number only matters for movie-length videos
+      const titleOnly = !meta.episode;
+      if (titleOnly && !(duration >= MOVIE_MIN_SECONDS)) return;
+
+      requestPlan(meta, duration);
+      const ready = planState === 'ready';
+
+      // MAL-based length check when available, fixed rules if MAL is unreachable,
+      // and "not yet" while the plan is still loading
+      const eligible = ready
+        ? plan.eligible && (plan.lengthChecked || isEpisodeLength(duration))
+        : planState === 'unavailable' && !titleOnly && isEpisodeLength(duration);
+      const episode = ready && plan.eligible ? plan.episode : meta.episode;
+
       const now = Date.now();
-      if (isFinished || now - lastStatusSent >= STATUS_THROTTLE_MS) {
+      const showStatus = !titleOnly || (ready && plan.eligible);
+      if (showStatus && (isFinished || now - lastStatusSent >= STATUS_THROTTLE_MS)) {
         lastStatusSent = now;
         chrome.runtime.sendMessage({
           type: 'UPDATE_PLAYBACK_STATUS',
           data: {
             animeTitle: meta.title,
-            episodeNumber: meta.episode,
+            episodeNumber: episode,
             percentage,
             currentTime,
             duration,
+            // Lets the background apply the "moved on to the next episode" rule
+            eligible,
             site: window.location.hostname
           }
         }).catch(() => {});
       }
 
-      if (!isEpisodeLength(duration)) return;
       if (syncState !== 'idle' || now < retryAt) return;
-      if (percentage < syncThreshold && !isFinished) return;
+      if (planState === 'pending') return; // decide once the plan arrives
+      if (!eligible) return;
+
+      let due;
+      if (ready) {
+        // Universal rule: threshold or start of the ending, whichever comes first
+        due = isFinished || currentTime >= plan.syncAt;
+      } else {
+        // Fallback (MAL unreachable): fixed threshold, or the last 90s of the video
+        const inOutro = duration - currentTime <= OUTRO_SECONDS && percentage >= OUTRO_MIN_PERCENT;
+        due = isFinished || percentage >= syncThreshold || inOutro;
+      }
+      if (!due) return;
 
       // Mark pending synchronously so rapid timeupdate events cannot double-send
       syncState = 'pending';
       const syncedMeta = meta;
-      console.log(`[AniSync] Threshold reached (${percentage}%). Syncing "${meta.title}" Episode ${meta.episode}...`);
+      const why = ready ? `reached ${plan.endingSource === 'aniskip' ? 'ending (AniSkip)' : 'sync point'} at ${Math.round(currentTime)}s` : `${percentage}%`;
+      console.log(`[AniSync] Syncing "${meta.title}" Episode ${episode} (${why})...`);
 
       chrome.runtime.sendMessage({
         type: 'SYNC_EPISODE',
-        data: { animeTitle: meta.title, episodeNumber: meta.episode }
+        data: { animeTitle: meta.title, episodeNumber: episode }
       }).then((res) => {
         if (currentMeta !== syncedMeta) return; // Episode changed meanwhile
         if (res?.success) {
@@ -370,9 +453,20 @@
   // ---------- Boot ----------
 
   if (isTopFrame) {
-    chrome.storage.local.get(['supported_domains', 'dynamic_site_rules']).then(({ supported_domains, dynamic_site_rules }) => {
+    // Sites the user enabled themselves live in sync storage (follows their browser account)
+    const userSitesPromise = chrome.storage.sync
+      ? chrome.storage.sync.get('user_sites').then(r => r.user_sites).catch(() => [])
+      : Promise.resolve([]);
+
+    Promise.all([
+      chrome.storage.local.get(['supported_domains', 'dynamic_site_rules']),
+      userSitesPromise
+    ]).then(([{ supported_domains, dynamic_site_rules }, user_sites]) => {
       if (Array.isArray(dynamic_site_rules)) customRules = dynamic_site_rules;
-      const domains = Array.isArray(supported_domains) ? supported_domains : [];
+      const domains = [
+        ...(Array.isArray(supported_domains) ? supported_domains : []),
+        ...(Array.isArray(user_sites) ? user_sites.map(s => s?.domain).filter(Boolean) : [])
+      ];
       if (isSupportedHost(window.location.hostname, domains)) {
         startTopFrame();
       }

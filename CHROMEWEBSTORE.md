@@ -1,11 +1,11 @@
 # Chrome Web Store Listing — AniSync
 
-> Last Updated: 2026-11-18
+> Last Updated: 2026-11-20 — describes the **store edition** built by `node scripts/build.js` (`dist/anisync-chrome-store-*.zip`), not the full developer edition in the repo root.
 
 ## Store Listing
 
 **Extension Name** [REQUIRED]
-AniSync - MyAnimeList Auto Tracker
+AniSync - Anime Tracker for MyAnimeList
 
 **Short Description** [REQUIRED]
 Automatically detects anime episodes as you watch on streaming websites and syncs your progress to MyAnimeList in the background.
@@ -56,21 +56,25 @@ English
 
 | Permission | Type | Justification |
 |------------|------|---------------|
-| `storage` | permissions | Stores the user's OAuth tokens and sync preferences locally on their device. |
-| `identity` | permissions | Initiates official MyAnimeList OAuth 2.0 authorization dialog via `launchWebAuthFlow`. |
-| `notifications` | permissions | Notifies the user when an episode has successfully synced to MyAnimeList. |
-| `alarms` | permissions | Refreshes the supported streaming-site list every 12 hours and clears the toolbar badge after a sync. |
-| `https://api.myanimelist.net/*` | host_permissions | Communicates with the official MyAnimeList REST API to search anime and update watch lists. |
-| `https://myanimelist.net/*` | host_permissions | Handles user authentication and token exchange endpoints. |
-| `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/*` | host_permissions | Downloads the public list of supported streaming domains. No user data is sent. |
-| `*://*/*` | content_scripts | Video players are embedded in iframes hosted on many changing third-party domains, so the detector must be able to load in any frame. It stays inactive unless the tab's top-level site is on the supported streaming list, and it only reads the page title, episode markers and `<video>` playback position. |
+| `storage` | permissions | Stores OAuth tokens, preferences and sync history locally; the list of sites the user enabled is kept in the user's own browser sync storage. |
+| `identity` | permissions | Opens the official MyAnimeList OAuth 2.0 login via `launchWebAuthFlow`. |
+| `notifications` | permissions | Tells the user when an episode was synced to MyAnimeList. |
+| `alarms` | permissions | Clears the toolbar badge shortly after a sync. |
+| `activeTab` | permissions | When the user opens the popup, reads the current tab's address to show whether AniSync works on that site and offer to enable it. |
+| `scripting` | permissions | Registers the episode detector on sites the user explicitly enabled, and (on click) lists the page's video-player iframes so they can be included in the permission request. |
+| `https://api.myanimelist.net/*`, `https://myanimelist.net/*` | host_permissions | MyAnimeList API calls (search, update the user's list) and token exchange. |
+| `https://api.aniskip.com/*` | host_permissions | Looks up when an episode's ending starts (public community timestamps) so short episodes sync even if the user skips the ending. Only the MyAnimeList anime ID, episode number and video length are sent. Can be turned off in Preferences. |
+| Crunchyroll, YouTube, Netflix, HIDIVE, Bilibili, RetroCrush, Hulu | host_permissions + content_scripts | Official streaming services supported out of the box: reads the page title, episode number and `<video>` playback position. |
+| `*://*/*` | optional_host_permissions | Never granted automatically. Requested per site only when the user clicks **Enable** in the popup, through Chrome's own permission prompt; the user can revoke it at any time. |
 
 ---
 
 ## Privacy & Data Use
 
 ### Data Collection
-- Website Content: On supported streaming sites only, the page title, episode number and video playback position are read locally to detect what is being watched.
+- Website Content: Only on the official services above and on sites the user explicitly enabled, the page title, episode number and video playback position are read locally to detect what is being watched.
 - User Activity: Episode watch count and anime title (transmitted solely to `api.myanimelist.net` to update the user's own list).
-- Remote Config: The extension downloads a public site list from its Cloudflare Worker; no browsing data or identifiers are sent with that request.
+- Enabled Sites: The domains a user enables are stored in their own browser sync storage (Chrome/Google account sync) and never sent to the developer.
+- Remote Config: None. The store edition does not download any remote configuration or code.
+- Ending Timestamps: The MyAnimeList anime ID, episode number and video length are sent to AniSkip (api.aniskip.com) to find where the ending starts. No personal data, account info or browsing history is included. Optional (Preferences).
 - Personal Data: None collected by the developer or third parties.

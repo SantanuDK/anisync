@@ -1,20 +1,60 @@
 // AniSync - MyAnimeList API Client (OAuth 2.0 PKCE)
 
+const EDITION_CONFIG = typeof ANISYNC_EDITION !== 'undefined' ? ANISYNC_EDITION : {};
+
 const MAL_CONFIG = {
-  CLIENT_ID: 'YOUR_MAL_CLIENT_ID',
+  // A build can use its own MAL app (e.g. if MAL allows only one redirect URL per app)
+  CLIENT_ID: EDITION_CONFIG.malClientId || 'YOUR_MAL_CLIENT_ID',
   AUTH_URL: 'https://myanimelist.net/v1/oauth2/authorize',
   TOKEN_URL: 'https://myanimelist.net/v1/oauth2/token',
-  API_BASE: 'https://api.myanimelist.net/v2'
+  API_BASE: 'https://api.myanimelist.net/v2',
+  // Redirect used by the tab-based login (Firefox, where identity.launchWebAuthFlow is
+  // missing on Android). Must be registered in the MAL API app.
+  TAB_REDIRECT_URI: 'https://anisync-api.YOUR-SUBDOMAIN.workers.dev/oauth/callback'
 };
 
 const SEARCH_CACHE_PREFIX = 'cache_anime_';
+const ANIME_INFO_PREFIX = 'anime_info_';
+const ANISKIP_PREFIX = 'aniskip_';
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MIN_MATCH_SCORE = 0.6; // Dice similarity required to accept a search result
 
 class MalClient {
   constructor() {
-    this.redirectUri = chrome.identity.getRedirectURL();
+    // 'webauth' = browser login popup (Chrome); 'tab' = login in a normal tab (Firefox / Android)
+    const hasWebAuthFlow = !!(chrome.identity && chrome.identity.launchWebAuthFlow);
+    this.authFlow = EDITION_CONFIG.authFlow === 'tab' || !hasWebAuthFlow ? 'tab' : 'webauth';
+    this.redirectUri = this.authFlow === 'tab' ? MAL_CONFIG.TAB_REDIRECT_URI : chrome.identity.getRedirectURL();
     this._refreshPromise = null;
+    this._handledCodes = new Set();
+  }
+
+  _buildAuthUrl(codeVerifier) {
+    return `${MAL_CONFIG.AUTH_URL}?response_type=code` +
+      `&client_id=${encodeURIComponent(MAL_CONFIG.CLIENT_ID)}` +
+      `&code_challenge=${encodeURIComponent(codeVerifier)}` +
+      `&code_challenge_method=plain` +
+      `&redirect_uri=${encodeURIComponent(this.redirectUri)}`;
+  }
+
+  // Tab-based login, step 2: called by the background when a tab reaches the redirect URL.
+  // Works even if the background was suspended in between (state is in storage).
+  async completeLoginFromRedirect(redirectUrl) {
+    const url = new URL(redirectUrl);
+    const code = url.searchParams.get('code');
+    const error = url.searchParams.get('error');
+    if (error) throw new Error(`MAL Auth Error: ${error}`);
+    if (!code || this._handledCodes.has(code)) return null; // tabs.onUpdated can fire twice
+    this._handledCodes.add(code);
+
+    const { pkce_code_verifier } = await chrome.storage.local.get('pkce_code_verifier');
+    if (!pkce_code_verifier) return null; // no login in progress
+
+    const tokenData = await this.exchangeCodeForToken(code, pkce_code_verifier);
+    await chrome.storage.local.remove('pkce_code_verifier');
+    const profile = await this.fetchUserProfile(tokenData.access_token);
+    await chrome.storage.local.set({ mal_user_profile: profile });
+    return profile;
   }
 
   // Generate 64-char URL-safe cryptographically random string for PKCE
@@ -33,12 +73,14 @@ class MalClient {
   async login() {
     const codeVerifier = this.generateCodeVerifier();
     await chrome.storage.local.set({ pkce_code_verifier: codeVerifier });
+    const authUrl = this._buildAuthUrl(codeVerifier);
 
-    const authUrl = `${MAL_CONFIG.AUTH_URL}?response_type=code` +
-      `&client_id=${encodeURIComponent(MAL_CONFIG.CLIENT_ID)}` +
-      `&code_challenge=${encodeURIComponent(codeVerifier)}` +
-      `&code_challenge_method=plain` +
-      `&redirect_uri=${encodeURIComponent(this.redirectUri)}`;
+    // Tab-based login, step 1: open MAL in a normal tab; the background finishes
+    // the login when that tab lands on the redirect URL.
+    if (this.authFlow === 'tab') {
+      await chrome.tabs.create({ url: authUrl });
+      return { pending: true };
+    }
 
     return new Promise((resolve, reject) => {
       chrome.identity.launchWebAuthFlow(
@@ -315,9 +357,36 @@ class MalClient {
   // Remove all cached title -> anime matches
   async clearSearchCache() {
     const all = await chrome.storage.local.get(null);
-    const keys = Object.keys(all).filter(k => k.startsWith(SEARCH_CACHE_PREFIX) || k.startsWith('last_sync_'));
+    const keys = Object.keys(all).filter(k =>
+      k.startsWith(SEARCH_CACHE_PREFIX) || k.startsWith('last_sync_') ||
+      k.startsWith(ANIME_INFO_PREFIX) || k.startsWith(ANISKIP_PREFIX));
     if (keys.length > 0) await chrome.storage.local.remove(keys);
     return keys.length;
+  }
+
+  // Show facts used to plan syncing: type (tv/movie/...), episode count and the
+  // average episode length in seconds. Cached for 7 days.
+  async getAnimeInfo(animeId) {
+    const key = `${ANIME_INFO_PREFIX}${animeId}`;
+    const cached = (await chrome.storage.local.get(key))[key];
+    if (cached && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) return cached.info;
+
+    const token = await this.getValidAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/anime/${animeId}?fields=num_episodes,media_type,average_episode_duration`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error(`Failed to fetch anime info: ${res.status}`);
+
+    const data = await res.json();
+    const info = {
+      numEpisodes: data.num_episodes || 0,
+      mediaType: data.media_type || 'unknown',
+      avgDuration: data.average_episode_duration || 0
+    };
+    await chrome.storage.local.set({ [key]: { info, cachedAt: Date.now() } });
+    return info;
   }
 
   // Fetch the user's current list status for an anime (always fresh, never cached)

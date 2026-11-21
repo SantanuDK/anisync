@@ -583,3 +583,85 @@ input:checked + .toggle-slider:before {
 .error-msg.hidden {
   display: none;
 }
+
+/* ---------- This site / user-enabled sites ---------- */
+.site-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.site-info {
+  min-width: 0;
+}
+
+.site-host {
+  font-weight: 600;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.site-hint {
+  margin-top: 8px;
+}
+
+.site-state-on {
+  color: var(--success);
+}
+
+.warn-card {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  border-color: rgba(245, 158, 11, 0.4);
+}
+
+.warn-card.hidden,
+.site-row .hidden {
+  display: none;
+}
+
+.setting-row.setting-col {
+  flex-direction: column;
+  align-items: stretch;
+}
+
+.user-sites-list {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.user-site-item {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 4px 8px;
+  background-color: var(--bg-tertiary);
+  border-radius: var(--radius-sm);
+  font-size: 12px;
+}
+
+.user-site-item span {
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.btn-remove {
+  background: none;
+  border: none;
+  color: var(--text-secondary);
+  cursor: pointer;
+  font-size: 14px;
+  line-height: 1;
+  padding: 2px 4px;
+}
+
+.btn-remove:hover {
+  color: var(--danger);
+}

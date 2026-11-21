@@ -1,0 +1,13 @@
+{
+  "version": "1.0.0",
+  "description": "Official, licensed anime streaming services supported out of the box by the Chrome Web Store edition.",
+  "sites": [
+    { "id": "crunchyroll", "name": "Crunchyroll", "domains": ["crunchyroll.com"] },
+    { "id": "youtube", "name": "YouTube (official channels)", "domains": ["youtube.com"] },
+    { "id": "netflix", "name": "Netflix", "domains": ["netflix.com"] },
+    { "id": "hidive", "name": "HIDIVE", "domains": ["hidive.com"] },
+    { "id": "bilibili", "name": "Bilibili", "domains": ["bilibili.com", "bilibili.tv"] },
+    { "id": "retrocrush", "name": "RetroCrush", "domains": ["retrocrush.tv"] },
+    { "id": "hulu", "name": "Hulu", "domains": ["hulu.com"] }
+  ]
+}

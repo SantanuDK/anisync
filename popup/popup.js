@@ -33,6 +33,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const thresholdVal = document.getElementById('threshold-val');
   const toggleNotifications = document.getElementById('toggle-notifications');
   const toggleAutoStatus = document.getElementById('toggle-auto-status');
+  const toggleAniSkip = document.getElementById('toggle-aniskip');
   const btnClearCache = document.getElementById('btn-clear-cache');
 
   let currentPlaybackData = null;
@@ -84,6 +85,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       thresholdVal.textContent = `${thresholdSlider.value}%`;
       toggleNotifications.checked = settings.notificationsEnabled !== false;
       toggleAutoStatus.checked = settings.autoUpdateStatus !== false;
+      toggleAniSkip.checked = settings.useAniSkip !== false;
     }
   }
 
@@ -164,7 +166,11 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     try {
       const res = await chrome.runtime.sendMessage({ type: 'LOGIN' });
-      if (res && res.success) {
+      if (res && res.success && res.pending) {
+        // Firefox / Android: login continues in the MyAnimeList tab that just opened
+        authError.textContent = 'Finish logging in on the MyAnimeList tab, then open AniSync again.';
+        authError.classList.remove('hidden');
+      } else if (res && res.success) {
         init();
       } else {
         authError.textContent = res?.error || 'Login failed. Please try again.';
@@ -260,6 +266,13 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.set({ settings });
   });
 
+  // AniSkip toggle change
+  toggleAniSkip.addEventListener('change', async (e) => {
+    const { settings = {} } = await chrome.storage.local.get('settings');
+    settings.useAniSkip = e.target.checked;
+    await chrome.storage.local.set({ settings });
+  });
+
   // Clear cached title matches so the next sync re-searches MAL
   btnClearCache.addEventListener('click', async () => {
     btnClearCache.disabled = true;
@@ -274,6 +287,217 @@ document.addEventListener('DOMContentLoaded', async () => {
       btnClearCache.textContent = 'Reset';
     }, 2000);
   });
+
+  // ---------- This site / user-enabled sites ----------
+
+  const siteSection = document.getElementById('site-section');
+  const siteHost = document.getElementById('site-host');
+  const siteState = document.getElementById('site-state');
+  const siteHint = document.getElementById('site-hint');
+  const btnSiteToggle = document.getElementById('btn-site-toggle');
+  const userSitesList = document.getElementById('user-sites-list');
+  const siteAccessBanner = document.getElementById('site-access-banner');
+  const siteAccessCount = document.getElementById('site-access-count');
+  const btnGrantAll = document.getElementById('btn-grant-all');
+
+  // Embeds that are never the video player (ads, comments, captchas, analytics)
+  const IGNORED_FRAME_HOSTS = [
+    'google.com', 'googlesyndication.com', 'doubleclick.net', 'googletagmanager.com', 'gstatic.com',
+    'facebook.com', 'twitter.com', 'x.com', 'disqus.com', 'recaptcha.net', 'hcaptcha.com',
+    'discord.com', 'cloudflare.com', 'amazon-adsystem.com', 'youtube.com'
+  ];
+
+  let siteCtx = null;    // { tabId, host, frames }
+  let siteStatus = null; // response of SITE_STATUS
+
+  const originsFor = (host) => [`*://${host}/*`, `*://*.${host}/*`];
+  const normalizeHost = (h) => (h || '').toLowerCase().replace(/^www\./, '');
+
+  // Player iframes live on other domains; the store edition needs access to them too.
+  async function collectFrameHosts(tabId, host) {
+    if (!chrome.scripting?.executeScript) return [];
+    try {
+      const results = await chrome.scripting.executeScript({
+        target: { tabId },
+        func: () => [...document.querySelectorAll('iframe')]
+          .map(f => f.src || f.getAttribute('data-src') || '')
+          .filter(Boolean)
+      });
+      const hosts = new Set();
+      for (const src of results?.[0]?.result || []) {
+        try {
+          const h = normalizeHost(new URL(src).hostname);
+          const ignored = IGNORED_FRAME_HOSTS.some(i => h === i || h.endsWith('.' + i));
+          if (h && h !== host && !h.endsWith('.' + host) && !ignored) hosts.add(h);
+        } catch (_) {}
+      }
+      return [...hosts].slice(0, 6);
+    } catch (_) {
+      return [];
+    }
+  }
+
+  function renderUserSites(sites) {
+    userSitesList.innerHTML = '';
+    if (!sites || sites.length === 0) {
+      const empty = document.createElement('div');
+      empty.className = 'empty-state-sm';
+      empty.textContent = 'No sites added yet.';
+      userSitesList.appendChild(empty);
+      return;
+    }
+    for (const site of sites) {
+      const row = document.createElement('div');
+      row.className = 'user-site-item';
+      const name = document.createElement('span');
+      name.textContent = site.domain;
+      name.title = site.frames?.length ? `Player: ${site.frames.join(', ')}` : site.domain;
+      const btn = document.createElement('button');
+      btn.className = 'btn-remove';
+      btn.title = `Remove ${site.domain}`;
+      btn.textContent = '×';
+      btn.addEventListener('click', async () => {
+        await removeUserSite(site.domain);
+        await initSite();
+      });
+      row.appendChild(name);
+      row.appendChild(btn);
+      userSitesList.appendChild(row);
+    }
+  }
+
+  function renderSite() {
+    const st = siteStatus;
+    renderUserSites(st?.userSites || []);
+
+    const needing = st?.needingAccess || [];
+    siteAccessBanner.classList.toggle('hidden', needing.length === 0);
+    siteAccessCount.textContent = String(needing.length);
+
+    if (!siteCtx || !st) {
+      siteSection.classList.add('hidden');
+      return;
+    }
+    siteSection.classList.remove('hidden');
+    siteHost.textContent = siteCtx.host;
+    siteState.classList.remove('site-state-on');
+    siteHint.classList.add('hidden');
+    btnSiteToggle.classList.remove('hidden');
+    btnSiteToggle.disabled = false;
+
+    if (st.builtin) {
+      siteState.textContent = '✓ Supported out of the box';
+      siteState.classList.add('site-state-on');
+      btnSiteToggle.classList.add('hidden');
+    } else if (st.userSite) {
+      siteState.textContent = '✓ Enabled by you';
+      siteState.classList.add('site-state-on');
+      btnSiteToggle.textContent = 'Disable';
+    } else {
+      siteState.textContent = 'Not tracked on this site';
+      btnSiteToggle.textContent = 'Enable';
+      if (!st.staticContentScripts) siteHint.classList.remove('hidden');
+    }
+  }
+
+  async function initSite() {
+    let tab = null;
+    try {
+      [tab] = await chrome.tabs.query({ active: true, currentWindow: true });
+    } catch (_) {}
+
+    let host = null;
+    try {
+      const url = new URL(tab?.url || '');
+      if (url.protocol === 'http:' || url.protocol === 'https:') host = normalizeHost(url.hostname);
+    } catch (_) {}
+
+    try {
+      siteStatus = await chrome.runtime.sendMessage({ type: 'SITE_STATUS', hostname: host || '' });
+    } catch (_) {
+      siteStatus = null;
+    }
+
+    siteCtx = host ? { tabId: tab.id, host, frames: siteCtx?.host === host ? siteCtx.frames : [] } : null;
+    renderSite();
+
+    // Look for the player iframe up front, so the click handler can request
+    // permission immediately (permission prompts need a direct user click)
+    if (siteCtx && siteStatus && !siteStatus.staticContentScripts && !siteStatus.builtin && !siteStatus.userSite) {
+      siteCtx.frames = await collectFrameHosts(siteCtx.tabId, siteCtx.host);
+    }
+  }
+
+  async function removeUserSite(domain) {
+    const { user_sites = [] } = await chrome.storage.sync.get('user_sites');
+    const site = user_sites.find(s => s.domain === domain);
+    const remaining = user_sites.filter(s => s.domain !== domain);
+    await chrome.storage.sync.set({ user_sites: remaining });
+
+    if (site && siteStatus && !siteStatus.staticContentScripts) {
+      // Don't revoke a player host another enabled site still uses
+      const stillUsed = new Set(remaining.flatMap(s => [s.domain, ...(s.frames || [])]));
+      const hosts = [site.domain, ...(site.frames || [])].filter(h => !stillUsed.has(h));
+      if (hosts.length) {
+        try {
+          await chrome.permissions.remove({ origins: hosts.flatMap(originsFor) });
+        } catch (_) {}
+      }
+    }
+    await chrome.runtime.sendMessage({ type: 'APPLY_USER_SITES' }).catch(() => {});
+  }
+
+  btnSiteToggle.addEventListener('click', async () => {
+    if (!siteCtx || !siteStatus) return;
+    const { tabId, host, frames } = siteCtx;
+
+    if (siteStatus.userSite) {
+      btnSiteToggle.disabled = true;
+      await removeUserSite(siteStatus.userSite.domain);
+      chrome.tabs.reload(tabId).catch(() => {});
+      await initSite();
+      return;
+    }
+
+    // Store edition: ask the browser for access first (must be the first await after the click)
+    if (!siteStatus.staticContentScripts) {
+      let granted = false;
+      try {
+        granted = await chrome.permissions.request({ origins: [host, ...frames].flatMap(originsFor) });
+      } catch (err) {
+        siteState.textContent = `Could not request access: ${err.message}`;
+        return;
+      }
+      if (!granted) {
+        siteState.textContent = 'Access was not granted';
+        return;
+      }
+    }
+
+    btnSiteToggle.disabled = true;
+    const { user_sites = [] } = await chrome.storage.sync.get('user_sites');
+    const next = user_sites.filter(s => s.domain !== host).concat([{ domain: host, frames }]);
+    await chrome.storage.sync.set({ user_sites: next });
+
+    // Make sure the detector is registered before reloading the page
+    await chrome.runtime.sendMessage({ type: 'APPLY_USER_SITES' }).catch(() => {});
+    chrome.tabs.reload(tabId).catch(() => {});
+    await initSite();
+  });
+
+  btnGrantAll.addEventListener('click', async () => {
+    const needing = new Set(siteStatus?.needingAccess || []);
+    const sites = (siteStatus?.userSites || []).filter(s => needing.has(s.domain));
+    const origins = sites.flatMap(s => [s.domain, ...(s.frames || [])]).flatMap(originsFor);
+    if (origins.length === 0) return;
+    try {
+      const granted = await chrome.permissions.request({ origins });
+      if (granted) await chrome.runtime.sendMessage({ type: 'APPLY_USER_SITES' }).catch(() => {});
+    } catch (_) {}
+    await initSite();
+  });
+
+  initSite();
 
   // Initial load
   init();
