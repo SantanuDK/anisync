@@ -3,7 +3,10 @@
 // Chrome loads this file as a service worker and needs importScripts.
 // Firefox loads all files via background.scripts, so they are already present.
 if (typeof importScripts === 'function') {
-  importScripts('edition.js', 'mal-client.js');
+  importScripts('edition.js');
+  // Only the full edition ships the site-index reader
+  if (ANISYNC_EDITION.siteIndex) importScripts('site-index.js');
+  importScripts('mal-client.js');
 }
 
 const LEGACY_DYNAMIC_SCRIPT_ID = 'anisync-dynamic-detector';
@@ -154,42 +157,86 @@ if (chrome.permissions?.onAdded) {
   chrome.permissions.onRemoved.addListener(() => syncUserSiteScripts());
 }
 
-async function saveSiteData(data) {
+// A remote list must look like a real list before it may replace the current one:
+// at least MIN_REMOTE_DOMAINS domains, and not shrinking below 60% of what we have
+// (protects against an outage, a format change or a half-empty response wiping sites).
+const MIN_REMOTE_DOMAINS = 100;
+const MAX_SHRINK_RATIO = 0.6;
+
+async function saveSiteData(data, source, { checkPlausible = false } = {}) {
   const domains = collectDomains(data);
   if (domains.length === 0) return false;
+
+  const { supported_domains: current = [] } = await chrome.storage.local.get('supported_domains');
+  if (checkPlausible) {
+    if (domains.length < MIN_REMOTE_DOMAINS) {
+      throw new Error(`only ${domains.length} domains — looks broken, keeping current list`);
+    }
+    if (current.length > 0 && domains.length < current.length * MAX_SHRINK_RATIO) {
+      throw new Error(`list shrank from ${current.length} to ${domains.length} domains — keeping current list`);
+    }
+  }
+
+  const before = new Set(current);
+  const after = new Set(domains);
+  const added = domains.filter(d => !before.has(d));
+  const removed = current.filter(d => !after.has(d));
+
   await chrome.storage.local.set({
     dynamic_site_rules: data.sites,
-    supported_domains: domains
+    supported_domains: domains,
+    site_list_meta: {
+      source,
+      sites: Array.isArray(data.sites) ? data.sites.length : 0,
+      domains: domains.length,
+      checkedAt: Date.now(),
+      // Keep the last real change, so the popup can show what changed
+      lastChange: (added.length || removed.length) && current.length
+        ? { at: Date.now(), added: added.slice(0, 50), removed: removed.slice(0, 50) }
+        : ((await chrome.storage.local.get('site_list_meta')).site_list_meta?.lastChange || null)
+    }
   });
   supportedDomainsCache = new Set(domains);
+  if (added.length || removed.length) {
+    console.log(`[AniSync] Site list (${source}): +${added.length} -${removed.length}`, { added, removed });
+  }
   return true;
 }
 
-// Fetch the latest list from Cloudflare (full edition). Falls back to the copy bundled
-// with the extension if the network fails and nothing is stored yet. The store edition
-// has no remote list and always uses its bundled official-sites list.
+// Update the supported-site list. Full edition: the public site index directly (new
+// mirrors in, dead ones out, no server redeploy needed), then the
+// Cloudflare Worker, then the bundled copy (only if nothing is stored yet).
+// The store edition has no remote list and always uses its bundled official list.
 async function syncSitesFromCloudflare() {
+  if (ANISYNC_EDITION.siteIndex && typeof fetchSiteIndex === 'function') {
+    try {
+      if (await saveSiteData(await fetchSiteIndex(), SITE_INDEX_LABEL, { checkPlausible: true })) return;
+    } catch (err) {
+      console.warn('[AniSync] Could not update sites from the site index:', err.message);
+    }
+  }
+
   if (ANISYNC_EDITION.sitesUrl) {
     try {
       const res = await fetch(ANISYNC_EDITION.sitesUrl, { cache: 'no-cache' });
       if (!res.ok) throw new Error(`Cloudflare HTTP ${res.status}`);
       const data = await res.json();
       if (!Array.isArray(data.sites)) throw new Error('Malformed site list');
-      if (await saveSiteData(data)) {
-        console.log(`[AniSync] Loaded ${data.sites.length} sites from Cloudflare.`);
-        return;
-      }
+      if (await saveSiteData(data, 'AniSync server', { checkPlausible: true })) return;
     } catch (err) {
       console.warn('[AniSync] Could not update sites from Cloudflare:', err.message);
     }
+  }
 
+  // Remote sources failed: keep whatever list we already have
+  if (ANISYNC_EDITION.sitesUrl || ANISYNC_EDITION.siteIndex) {
     const { supported_domains } = await chrome.storage.local.get('supported_domains');
     if (Array.isArray(supported_domains) && supported_domains.length > 0) return;
   }
 
   try {
     const res = await fetch(chrome.runtime.getURL(ANISYNC_EDITION.bundledSitesPath));
-    await saveSiteData(await res.json());
+    await saveSiteData(await res.json(), 'built-in copy');
     console.log('[AniSync] Using bundled site list.');
   } catch (err) {
     console.error('[AniSync] Failed to load bundled site list:', err);
@@ -214,7 +261,7 @@ chrome.runtime.onInstalled.addListener(async (details) => {
   }
 
   // Periodic alarm to check for new sites every 12 hours
-  if (ANISYNC_EDITION.sitesUrl) {
+  if (ANISYNC_EDITION.sitesUrl || ANISYNC_EDITION.siteIndex) {
     chrome.alarms.create('SYNC_CLOUDFLARE_SITES', { periodInMinutes: 720 });
   }
   await syncSitesFromCloudflare();
@@ -305,14 +352,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_STATUS': {
-          const { mal_tokens, mal_user_profile, settings, recent_syncs, current_playback, dynamic_site_rules } =
+          const { mal_tokens, mal_user_profile, settings, recent_syncs, current_playback, dynamic_site_rules, site_list_meta } =
             await chrome.storage.local.get([
               'mal_tokens',
               'mal_user_profile',
               'settings',
               'recent_syncs',
               'current_playback',
-              'dynamic_site_rules'
+              'dynamic_site_rules',
+              'site_list_meta'
             ]);
 
           const isLoggedIn = !!(mal_tokens && mal_tokens.access_token);
@@ -323,15 +371,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             settings: { ...DEFAULT_SETTINGS, ...(settings || {}) },
             recentSyncs: recent_syncs || [],
             currentPlayback: current_playback || null,
-            dynamicSitesCount: dynamic_site_rules?.length || 0
+            dynamicSitesCount: dynamic_site_rules?.length || 0,
+            siteList: site_list_meta || null,
+            canRefreshSites: !!(ANISYNC_EDITION.sitesUrl || ANISYNC_EDITION.siteIndex)
           });
           break;
         }
 
         case 'REFRESH_SITES_NOW': {
           await syncSitesFromCloudflare();
-          const { dynamic_site_rules = [] } = await chrome.storage.local.get('dynamic_site_rules');
-          sendResponse({ success: true, count: dynamic_site_rules.length });
+          const { site_list_meta } = await chrome.storage.local.get('site_list_meta');
+          sendResponse({ success: true, siteList: site_list_meta || null });
           break;
         }
 
@@ -404,7 +454,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'UPDATE_PLAYBACK_STATUS': {
-          const { animeTitle, episodeNumber, percentage, currentTime, duration, site, eligible } = message.data;
+          const { animeTitle, episodeNumber, malId, percentage, currentTime, duration, site, eligible } = message.data;
           const { current_playback: prev } = await chrome.storage.local.get('current_playback');
 
           const sameShow = !!prev && normTitle(prev.animeTitle) === normTitle(animeTitle);
@@ -414,6 +464,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             current_playback: {
               animeTitle,
               episodeNumber,
+              malId: malId || null,
               percentage,
               // Furthest point reached in this episode (survives seeking back)
               maxPercentage: Math.max(percentage || 0, sameEpisode ? (prev.maxPercentage || prev.percentage || 0) : 0),
@@ -433,7 +484,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               prev.eligible &&
               (prev.maxPercentage || prev.percentage || 0) >= NEXT_EPISODE_MIN_PERCENT &&
               Date.now() - (prev.updatedAt || 0) < NEXT_EPISODE_WINDOW_MS) {
-            handleSyncEpisode(prev.animeTitle, prev.episodeNumber).catch((err) => {
+            handleSyncEpisode(prev.animeTitle, prev.episodeNumber, prev.malId).catch((err) => {
               console.warn('[AniSync] Next-episode sync failed:', err.message);
             });
           }
@@ -443,15 +494,15 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'GET_SYNC_PLAN': {
-          const { animeTitle, episodeNumber, duration } = message.data || {};
-          const plan = await buildSyncPlan(animeTitle, episodeNumber, duration);
+          const { animeTitle, episodeNumber, duration, malId } = message.data || {};
+          const plan = await buildSyncPlan(animeTitle, episodeNumber, duration, malId);
           sendResponse({ success: true, plan });
           break;
         }
 
         case 'SYNC_EPISODE': {
-          const { animeTitle, episodeNumber } = message.data;
-          const syncResult = await handleSyncEpisode(animeTitle, episodeNumber);
+          const { animeTitle, episodeNumber, malId } = message.data;
+          const syncResult = await handleSyncEpisode(animeTitle, episodeNumber, malId);
           sendResponse(syncResult);
           break;
         }
@@ -526,12 +577,12 @@ async function getAniSkipEnding(malId, episode, duration) {
   return start >= duration * 0.4 && start < duration ? start : null;
 }
 
-async function buildSyncPlan(animeTitle, episodeNumber, duration) {
+async function buildSyncPlan(animeTitle, episodeNumber, duration, malId = null) {
   if (!animeTitle || !(duration > 0)) return { available: false, reason: 'missing data' };
   const token = await malClient.getValidAccessToken();
   if (!token) return { available: false, reason: 'not logged in' };
 
-  const anime = await malClient.searchAnime(animeTitle);
+  const anime = await malClient.resolveAnime(animeTitle, malId);
   if (!anime) return { available: true, eligible: false, reason: 'no confident MyAnimeList match' };
 
   const info = await malClient.getAnimeInfo(anime.id);
@@ -600,11 +651,11 @@ function normTitle(t) {
 // frames or tabs share one MAL update instead of racing each other.
 const inFlightSyncs = new Map();
 
-function handleSyncEpisode(animeTitle, episodeNumber) {
+function handleSyncEpisode(animeTitle, episodeNumber, malId = null) {
   const key = `${(animeTitle || '').toLowerCase().trim()}#${episodeNumber}`;
   if (inFlightSyncs.has(key)) return inFlightSyncs.get(key);
 
-  const promise = doSyncEpisode(animeTitle, episodeNumber)
+  const promise = doSyncEpisode(animeTitle, episodeNumber, malId)
     .finally(() => inFlightSyncs.delete(key));
   inFlightSyncs.set(key, promise);
   return promise;
@@ -625,7 +676,7 @@ function decideStatus(listStatus, ep, totalEpisodes, autoUpdateStatus) {
   return null;
 }
 
-async function doSyncEpisode(animeTitle, episodeNumber) {
+async function doSyncEpisode(animeTitle, episodeNumber, malId = null) {
   const token = await malClient.getValidAccessToken();
   if (!token) {
     return { success: false, error: 'User is not logged in to MyAnimeList' };
@@ -642,7 +693,7 @@ async function doSyncEpisode(animeTitle, episodeNumber) {
     return { success: true, alreadySynced: true, message: `Episode ${ep} already synced.` };
   }
 
-  const anime = await malClient.searchAnime(animeTitle);
+  const anime = await malClient.resolveAnime(animeTitle, malId);
   if (!anime) {
     return { success: false, error: `No confident match for "${animeTitle}" on MyAnimeList` };
   }

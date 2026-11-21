@@ -1,89 +1,36 @@
 // AniSync - Fetch EverythingMoe Anime Sites & Proxies
+//
+// Refreshes the BUNDLED fallback list (cloudflare-worker/sites.json) and regenerates
+// cloudflare-worker/worker.js. You don't need to run this for users to get updates:
+// the full edition already reads EverythingMoe directly every 12 hours. Run it before
+// building a release so the bundled fallback is current. Uses the same parser as the
+// extension (background/site-index.js).
+//
+// Usage: node scripts/fetch-everythingmoe.js
 const fs = require('fs');
 const path = require('path');
+const { parseEverythingMoe, EVERYTHINGMOE_SEARCH_URL, EVERYTHINGMOE_MAIN_URL } = require('../background/site-index.js');
 
 async function run() {
+  process.chdir(path.resolve(__dirname, '..'));
   console.log('Fetching data from EverythingMoe cache...');
   const [resSearch, resMain] = await Promise.all([
-    fetch('https://everythingmoe.com/data/cache/search.json').then(r => r.json()),
-    fetch('https://everythingmoe.com/data/cache/main.json').then(r => r.json())
+    fetch(EVERYTHINGMOE_SEARCH_URL).then(r => { if (!r.ok) throw new Error('search.json HTTP ' + r.status); return r.json(); }),
+    fetch(EVERYTHINGMOE_MAIN_URL).then(r => { if (!r.ok) throw new Error('main.json HTTP ' + r.status); return r.json(); })
   ]);
 
-  const animeSites = resSearch.filter(item => item.type === 'anime');
-  const IGNORED_HOSTS = ['github.com', 'discord.gg', 'discord.com', 't.me', 'reddit.com', 'twitter.com', 'x.com', 'everythingmoe.com', 'patreon.com'];
+  const payload = parseEverythingMoe(resSearch, resMain);
+  if (payload.totalDomains < 100) throw new Error('Only ' + payload.totalDomains + ' domains parsed - EverythingMoe format may have changed. Nothing written.');
 
-  function extractHostname(urlStr) {
-    if (!urlStr) return null;
-    try {
-      let clean = urlStr.trim();
-      if (!clean.startsWith('http://') && !clean.startsWith('https://')) {
-        clean = 'https://' + clean;
-      }
-      const url = new URL(clean);
-      const host = url.hostname.toLowerCase().replace(/^www\./, '');
-      if (IGNORED_HOSTS.some(h => host === h || host.endsWith('.' + h))) return null;
-      if (!host.includes('.')) return null;
-      return host;
-    } catch (_) {
-      return null;
-    }
-  }
-
-  function parseLinksFromText(rawText) {
-    if (!rawText || typeof rawText !== 'string') return [];
-    const domains = [];
-    const urlMatches = rawText.match(/https?:\/\/[^\s#<>"',]+/g) || [];
-    for (const u of urlMatches) {
-      const h = extractHostname(u);
-      if (h) domains.push(h);
-    }
-    const words = rawText.split(/[\s,]+/);
-    for (const w of words) {
-      if (/^[a-zA-Z0-9-]+\.[a-zA-Z]{2,}(?:\.[a-zA-Z]{2,})?$/.test(w)) {
-        const h = extractHostname(w);
-        if (h) domains.push(h);
-      }
-    }
-    return domains;
-  }
-
-  const result = [];
-  const allUniqueDomains = new Set();
-
-  for (const s of animeSites) {
-    const siteDomains = new Set();
-    const primaryHost = extractHostname(s.link);
-    if (primaryHost) siteDomains.add(primaryHost);
-
-    const mainDetail = resMain[s.id] || {};
-    const altlinks = parseLinksFromText(mainDetail.altlink);
-    const exAltlinks = parseLinksFromText(mainDetail['ex-altlink']);
-    const extraDomains = parseLinksFromText(mainDetail.domains);
-
-    for (const d of [...altlinks, ...exAltlinks, ...extraDomains]) {
-      siteDomains.add(d);
-    }
-
-    const domainList = Array.from(siteDomains).sort();
-    domainList.forEach(d => allUniqueDomains.add(d));
-
-    result.push({
-      id: s.id,
-      name: s.title,
-      primaryUrl: s.link,
-      domains: domainList
-    });
-  }
-
-  const sortedAllDomains = Array.from(allUniqueDomains).sort();
-  const payload = {
-    version: '1.0.0',
-    updatedAt: new Date().toISOString(),
-    totalSites: result.length,
-    totalDomains: sortedAllDomains.length,
-    domains: sortedAllDomains,
-    sites: result
-  };
+  // Show what changed compared to the current bundled list
+  let previous = [];
+  try { previous = JSON.parse(fs.readFileSync('cloudflare-worker/sites.json', 'utf8')).domains || []; } catch (_) {}
+  const before = new Set(previous), after = new Set(payload.domains);
+  const added = payload.domains.filter(d => !before.has(d));
+  const removed = previous.filter(d => !after.has(d));
+  console.log('Sites: ' + payload.totalSites + ' | Domains: ' + payload.totalDomains);
+  console.log('Added (' + added.length + '): ' + (added.join(', ') || '-'));
+  console.log('Removed (' + removed.length + '): ' + (removed.join(', ') || '-'));
 
   fs.mkdirSync('cloudflare-worker', { recursive: true });
   fs.writeFileSync('cloudflare-worker/sites.json', JSON.stringify(payload, null, 2));
@@ -156,7 +103,7 @@ export default {
 `;
 
   fs.writeFileSync('cloudflare-worker/worker.js', workerJsContent);
-  console.log('Successfully generated sites.json and worker.js with ' + result.length + ' sites and ' + sortedAllDomains.length + ' domains!');
+  console.log('Successfully generated sites.json and worker.js with ' + payload.totalSites + ' sites and ' + payload.totalDomains + ' domains!');
 }
 
 run().catch(console.error);

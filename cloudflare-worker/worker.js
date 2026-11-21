@@ -6,9 +6,9 @@
 
 const DATA = {
   "version": "1.0.0",
-  "updatedAt": "2026-11-18T20:18:48.287Z",
-  "totalSites": 109,
-  "totalDomains": 324,
+  "updatedAt": "2026-11-21T14:57:17.857Z",
+  "totalSites": 106,
+  "totalDomains": 322,
   "domains": [
     "123anime.la",
     "123animehub.cc",
@@ -190,11 +190,12 @@ const DATA = {
     "gogoanimes.me.uk",
     "gogoanimez.to",
     "gojolive.site",
+    "gotaku.ch",
+    "gotaku.li",
     "gotaku.to",
     "guts.to",
     "hianime.at",
     "hianime.de.com",
-    "hianime.help",
     "hianime.ing",
     "hianimes.cz",
     "hianimes.ru",
@@ -203,10 +204,10 @@ const DATA = {
     "hianimez.org",
     "hidive.com",
     "hindianimeverse.org",
-    "hls.hiasian.to",
     "hopmarks.com",
     "hulu.com",
     "hypeanime.com",
+    "igotaku.to",
     "itachi.tv",
     "itasha.live",
     "jjba.lol",
@@ -223,7 +224,6 @@ const DATA = {
     "kartoons.to",
     "kawaiianime.cc",
     "kayoanimetv.com",
-    "kazora.cc",
     "kickass-anime.ro",
     "kickass-anime.ru",
     "kickassanime.cx",
@@ -238,7 +238,6 @@ const DATA = {
     "koianime.lol",
     "kooanime.lol",
     "kotoplay.to",
-    "kototv.to",
     "krussdomi.com",
     "kuroanime.lol",
     "kuroko.cc",
@@ -331,7 +330,6 @@ const DATA = {
     "zanix.tr",
     "zanora.lol",
     "zanora.xyz",
-    "zenkai.to",
     "zokoanime.video",
     "zorotv.cc"
   ],
@@ -389,7 +387,20 @@ const DATA = {
       "name": "Gotaku",
       "primaryUrl": "https://gotaku.to/",
       "domains": [
-        "gotaku.to"
+        "gotaku.ch",
+        "gotaku.li",
+        "gotaku.to",
+        "igotaku.to"
+      ]
+    },
+    {
+      "id": "anipm",
+      "name": "ani.pm",
+      "primaryUrl": "https://ani.pm/",
+      "domains": [
+        "ani.nz",
+        "ani.pm",
+        "ume.to"
       ]
     },
     {
@@ -403,16 +414,6 @@ const DATA = {
         "animepahe.ru",
         "animepahe.si",
         "owocdn.top"
-      ]
-    },
-    {
-      "id": "anipm",
-      "name": "ani.pm",
-      "primaryUrl": "https://ani.pm/",
-      "domains": [
-        "ani.nz",
-        "ani.pm",
-        "ume.to"
       ]
     },
     {
@@ -687,16 +688,6 @@ const DATA = {
       ]
     },
     {
-      "id": "kototv",
-      "name": "KotoTV",
-      "primaryUrl": "https://kototv.to/",
-      "domains": [
-        "hianime.help",
-        "hls.hiasian.to",
-        "kototv.to"
-      ]
-    },
-    {
       "id": "anihosts",
       "name": "AniHosts",
       "primaryUrl": "https://anihosts.xyz/",
@@ -888,16 +879,6 @@ const DATA = {
       ]
     },
     {
-      "id": "zenkai",
-      "name": "Zenkai",
-      "primaryUrl": "https://zenkai.to/home",
-      "domains": [
-        "hianime.help",
-        "kototv.to",
-        "zenkai.to"
-      ]
-    },
-    {
       "id": "animetvplus",
       "name": "animeTVplus",
       "primaryUrl": "https://animetvplus.xyz/",
@@ -942,14 +923,6 @@ const DATA = {
         "meguanime.com",
         "meguanime.net",
         "meguanime.org"
-      ]
-    },
-    {
-      "id": "kazora",
-      "name": "Kazora",
-      "primaryUrl": "https://kazora.cc/",
-      "domains": [
-        "kazora.cc"
       ]
     },
     {
@@ -1032,7 +1005,7 @@ const DATA = {
     {
       "id": "anixo",
       "name": "AniXo",
-      "primaryUrl": "https://anixo.online/home",
+      "primaryUrl": "https://anixo.live/home",
       "domains": [
         "anixo.buzz",
         "anixo.cfd",
@@ -1369,7 +1342,7 @@ const DATA = {
       ]
     },
     {
-      "id": "anime-dunya",
+      "id": "animedunya",
       "name": "Anime-Dunya",
       "primaryUrl": "https://anime-dunya.com/",
       "domains": [
@@ -1395,7 +1368,7 @@ const DATA = {
         "anime-world.cc",
         "anime-world.co",
         "anime-world.to",
-        "animezoker.com",
+        "animejoker.com",
         "animesalt.cx",
         "hindianimeverse.org",
         "piratexplay.cc",

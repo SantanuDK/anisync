@@ -58,13 +58,16 @@ function zipDir(outDir, zipPath) {
   }
 }
 
-function buildTarget({ name, include, files = {}, transformManifest }) {
+function buildTarget({ name, include, files = {}, exclude = [], transformManifest }) {
   const outDir = path.join(DIST, name);
   fs.rmSync(outDir, { recursive: true, force: true });
   fs.mkdirSync(outDir, { recursive: true });
 
   for (const item of include) {
     copy(path.join(ROOT, item), path.join(outDir, item));
+  }
+  for (const rel of exclude) {
+    fs.rmSync(path.join(outDir, rel), { force: true });
   }
   for (const [rel, content] of Object.entries(files)) {
     fs.mkdirSync(path.dirname(path.join(outDir, rel)), { recursive: true });
@@ -103,6 +106,7 @@ const ANISYNC_EDITION = {
     name: 'chrome-store',
     include: ['background', 'content', 'popup', 'icons', 'data/official-sites.json'],
     files: { 'background/edition.js': storeEdition },
+    exclude: ['background/site-index.js'],
     transformManifest: (m) => {
       const out = { ...m };
       delete out.key;
@@ -146,7 +150,7 @@ const ANISYNC_EDITION = {
       const out = { ...m };
       delete out.key;
       out.background = {
-        scripts: ['background/edition.js', 'background/mal-client.js', 'background/service-worker.js']
+        scripts: ['background/edition.js', 'background/site-index.js', 'background/mal-client.js', 'background/service-worker.js']
       };
       out.browser_specific_settings = {
         gecko: {

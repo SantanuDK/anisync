@@ -107,12 +107,12 @@
     }
 
     // 2. Highlighted entry in the episode list (SPA streaming sites)
+    const activeEpEl = document.querySelector(
+      'a.active[href*="ep"], a[class*="active"][href*="ep"], [class*="active"][data-number], [class*="active"][data-num], .episode-item.active, .ep-item.active, .ssl-item.active, li.active a[href*="ep"]'
+    );
     if (!episode) {
-      const activeEpEl = document.querySelector(
-        'a.active[href*="ep"], a[class*="active"][href*="ep"], [class*="active"][data-number], .episode-item.active, .ep-item.active, .ssl-item.active, li.active a[href*="ep"]'
-      );
       if (activeEpEl) {
-        const dataNum = activeEpEl.getAttribute('data-number');
+        const dataNum = activeEpEl.getAttribute('data-number') || activeEpEl.getAttribute('data-num');
         if (dataNum) {
           episode = toEpisode(dataNum);
         } else {
@@ -164,8 +164,22 @@
 
     if (title) title = cleanTitle(title);
 
+    // Many streaming sites put the MyAnimeList ID on their episode links
+    // (e.g. <a data-mal="62983">). That's exact, so no title search is needed.
+    let malId = null;
+    let malRaw = (activeEpEl?.closest('[data-mal]')?.getAttribute('data-mal') || '').trim();
+    if (!malRaw) {
+      // Page-wide IDs only count if they all agree: "related"/"recommended" lists
+      // carry other shows' IDs, and picking one of those would sync the wrong anime.
+      const ids = new Set([...document.querySelectorAll('[data-mal]')]
+        .map(el => (el.getAttribute('data-mal') || '').trim())
+        .filter(Boolean));
+      if (ids.size === 1) malRaw = [...ids][0];
+    }
+    if (/^\d{1,7}$/.test(malRaw) && Number(malRaw) > 0) malId = Number(malRaw);
+
     if (title && title.length > 1) {
-      return { title, episode: episode || null };
+      return { title, episode: episode || null, malId };
     }
     return null;
   }
@@ -329,7 +343,7 @@
 
     function requestPlan(meta, duration) {
       // Re-plan if the duration changes a lot (e.g. a pre-roll ad, then the episode)
-      const key = `${meta.title}#${meta.episode}#${Math.round(duration / 30)}`;
+      const key = `${meta.title}#${meta.episode}#${meta.malId}#${Math.round(duration / 30)}`;
       if (key === planKey) return;
       planKey = key;
       planState = 'pending';
@@ -337,7 +351,7 @@
 
       chrome.runtime.sendMessage({
         type: 'GET_SYNC_PLAN',
-        data: { animeTitle: meta.title, episodeNumber: meta.episode, duration }
+        data: { animeTitle: meta.title, episodeNumber: meta.episode, malId: meta.malId, duration }
       }).then((res) => {
         if (planKey !== key) return;
         if (res?.success && res.plan?.available) {
@@ -385,6 +399,7 @@
           data: {
             animeTitle: meta.title,
             episodeNumber: episode,
+            malId: meta.malId,
             percentage,
             currentTime,
             duration,
@@ -418,7 +433,7 @@
 
       chrome.runtime.sendMessage({
         type: 'SYNC_EPISODE',
-        data: { animeTitle: meta.title, episodeNumber: episode }
+        data: { animeTitle: meta.title, episodeNumber: episode, malId: meta.malId }
       }).then((res) => {
         if (currentMeta !== syncedMeta) return; // Episode changed meanwhile
         if (res?.success) {
@@ -447,7 +462,79 @@
       }
     });
 
+    // Embedded players (MegaCloud/MegaPlay, Vidstreaming, ...) post their own progress
+    // to the page: {"channel":"megacloud","event":"time","time":..,"duration":..} or
+    // {"type":"watching-log","currentTime":..,"duration":..}. Reading those works even
+    // when our script can't see the video inside the player iframe. Only messages from
+    // this page's own iframes are accepted, and they can only advance the episode the
+    // page itself shows.
+    let lastPlayerMsg = 0;
+    window.addEventListener('message', (event) => {
+      // Never let a strange message break tracking (Firefox can also throw when a
+      // content script reads some page-owned message data)
+      try {
+        if (event.source === window) return;
+        const progress = parsePlayerMessage(event.data);
+        if (!progress || !acceptPlayerSource(event.source, progress)) return;
+        const now = Date.now();
+        if (!progress.isFinished && now - lastPlayerMsg < 1000) return;
+        lastPlayerMsg = now;
+        handleProgress(progress);
+      } catch (_) {}
+    });
+
+    console.info(`[AniSync] Tracking active on ${window.location.hostname}`);
     watchVideos(handleProgress);
+  }
+
+  // Which iframe is the video player? The first sizeable iframe on this page that reports
+  // a real video (>= 60s; ads are shorter) becomes "the player", and from then on only
+  // its messages count, as long as it is still on the page. Overlay ads, comment widgets
+  // and other frames can't feed or disturb the progress.
+  const PLAYER_MIN_WIDTH = 200;
+  const PLAYER_MIN_HEIGHT = 120;
+  const PLAYER_MIN_DURATION = 60;
+  let playerSource = null;
+
+  function acceptPlayerSource(source, progress) {
+    if (!source) return false;
+    const frames = [...document.querySelectorAll('iframe')];
+    const frame = frames.find(f => f.contentWindow === source);
+    if (!frame) return false; // not one of this page's own iframes
+
+    if (playerSource && frames.some(f => f.contentWindow === playerSource)) {
+      return source === playerSource;
+    }
+    const sizeable = frame.offsetWidth >= PLAYER_MIN_WIDTH && frame.offsetHeight >= PLAYER_MIN_HEIGHT;
+    if (sizeable && progress.duration >= PLAYER_MIN_DURATION) {
+      playerSource = source;
+      return true;
+    }
+    return false;
+  }
+
+  function parsePlayerMessage(raw) {
+    let data = raw;
+    if (typeof raw === 'string') {
+      if (raw.length > 2000 || raw[0] !== '{') return null;
+      try { data = JSON.parse(raw); } catch (_) { return null; }
+    }
+    if (!data || typeof data !== 'object') return null;
+
+    const event = String(data.event || data.type || '').toLowerCase();
+    const isFinished = event === 'complete' || event === 'ended' || event === 'end';
+    const currentTime = Number(data.time ?? data.currentTime ?? data.position);
+    const duration = Number(data.duration);
+    if (!(duration > 0) || !Number.isFinite(duration)) return null;
+    if (!isFinished && !(currentTime >= 0 && currentTime <= duration + 5)) return null;
+
+    const time = isFinished ? duration : Math.min(currentTime, duration);
+    return {
+      percentage: Math.round((time / duration) * 100),
+      currentTime: time,
+      duration,
+      isFinished
+    };
   }
 
   // ---------- Boot ----------

@@ -18,6 +18,9 @@ const ANIME_INFO_PREFIX = 'anime_info_';
 const ANISKIP_PREFIX = 'aniskip_';
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MIN_MATCH_SCORE = 0.6; // Dice similarity required to accept a search result
+// Lower bar when the site itself gave us the MAL ID: we only need to rule out an
+// unrelated show, and sites often use their own spelling of the title
+const MAL_ID_MIN_TITLE_SCORE = 0.3;
 
 class MalClient {
   constructor() {
@@ -243,6 +246,7 @@ class MalClient {
   normalizeTitle(rawTitle) {
     if (!rawTitle) return '';
     return rawTitle
+      .replace(/^\s*(?:Watch|Stream)\s+/i, '')
       .replace(/\s*\(?\b(?:TV|Dub|Sub|Official|1080p|720p|HD|Uncensored)\b\)?/gi, '')
       .replace(/\s*-\s*Season\s*(\d+)/gi, ' Season $1')
       .replace(/\s*-\s*Part\s*(\d+)/gi, ' Part $1')
@@ -298,9 +302,45 @@ class MalClient {
       return cached.node;
     }
 
-    // MAL rejects queries longer than 64 characters
-    const query = cleanTitle.slice(0, 64);
-    const url = `${MAL_CONFIG.API_BASE}/anime?q=${encodeURIComponent(query)}&limit=10&fields=id,title,alternative_titles,num_episodes,main_picture`;
+    // MAL's search is strict about words: sites often use a slightly different English
+    // title ("...Love Meter is Broken" vs MAL's "...Love Meter Malfunction"). If the full
+    // title finds nothing usable, retry with shorter prefixes. Every result is still
+    // scored against the FULL title, so a shorter query can't pull in the wrong show.
+    for (const query of this._queryVariants(cleanTitle)) {
+      const results = await this._searchRequest(query, token);
+      const candidate = results.length ? this.selectBestMatch(cleanTitle, results) : null;
+      if (candidate) {
+        const node = {
+          id: candidate.id,
+          title: candidate.title,
+          num_episodes: candidate.num_episodes || 0,
+          main_picture: candidate.main_picture || null
+        };
+        await chrome.storage.local.set({ [cacheKey]: { node, cachedAt: Date.now() } });
+        return node;
+      }
+    }
+    return null;
+  }
+
+  // Full title first, then up to 3 shorter word prefixes (never below 2 words / half the title)
+  _queryVariants(cleanTitle) {
+    const words = cleanTitle.split(' ').filter(Boolean);
+    const variants = [words.join(' ')];
+    const minWords = Math.max(2, Math.ceil(words.length / 2));
+    for (let n = words.length - 1; n >= minWords && variants.length < 4; n--) {
+      variants.push(words.slice(0, n).join(' '));
+    }
+    // MAL rejects queries longer than 64 characters or shorter than 3
+    return [...new Set(variants.map(v => v.slice(0, 64).trim()))].filter(v => v.length >= 3);
+  }
+
+  async _searchRequest(query, token) {
+    // nsfw=true: without it MAL silently hides every ecchi/fanservice title ("gray"),
+    // e.g. "Marika's Love Meter Malfunction" -> zero results. We only use the results
+    // to match what the user is already watching.
+    const url = `${MAL_CONFIG.API_BASE}/anime?q=${encodeURIComponent(query)}&limit=10&nsfw=true` +
+      `&fields=id,title,alternative_titles,num_episodes,main_picture`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -312,22 +352,7 @@ class MalClient {
     }
 
     const data = await res.json();
-    if (!data.data || data.data.length === 0) {
-      return null;
-    }
-
-    const candidate = this.selectBestMatch(cleanTitle, data.data);
-    if (candidate) {
-      const node = {
-        id: candidate.id,
-        title: candidate.title,
-        num_episodes: candidate.num_episodes || 0,
-        main_picture: candidate.main_picture || null
-      };
-      await chrome.storage.local.set({ [cacheKey]: { node, cachedAt: Date.now() } });
-      return node;
-    }
-    return null;
+    return Array.isArray(data.data) ? data.data : [];
   }
 
   // Pick the result whose title (or any alternative title) is most similar to the query.
@@ -369,24 +394,61 @@ class MalClient {
   async getAnimeInfo(animeId) {
     const key = `${ANIME_INFO_PREFIX}${animeId}`;
     const cached = (await chrome.storage.local.get(key))[key];
-    if (cached && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) return cached.info;
+    if (cached && cached.info?.title && Array.isArray(cached.info.names) && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) {
+      return cached.info;
+    }
 
     const token = await this.getValidAccessToken();
     if (!token) throw new Error('Not authenticated');
 
-    const res = await fetch(`${MAL_CONFIG.API_BASE}/anime/${animeId}?fields=num_episodes,media_type,average_episode_duration`, {
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/anime/${animeId}?fields=num_episodes,media_type,average_episode_duration,main_picture,alternative_titles`, {
       headers: { 'Authorization': `Bearer ${token}` }
     });
     if (!res.ok) throw new Error(`Failed to fetch anime info: ${res.status}`);
 
     const data = await res.json();
+    const alts = data.alternative_titles || {};
     const info = {
+      title: data.title || '',
+      // Every name MAL knows the show by (romaji, English, Japanese, synonyms)
+      names: [data.title, alts.en, alts.ja, ...(alts.synonyms || [])].filter(Boolean),
+      mainPicture: data.main_picture || null,
       numEpisodes: data.num_episodes || 0,
       mediaType: data.media_type || 'unknown',
       avgDuration: data.average_episode_duration || 0
     };
     await chrome.storage.local.set({ [key]: { info, cachedAt: Date.now() } });
     return info;
+  }
+
+  // Same shape as searchAnime(), but from an exact MAL ID (e.g. read from the page)
+  async getAnimeById(animeId) {
+    const info = await this.getAnimeInfo(animeId);
+    if (!info.title) return null;
+    return {
+      id: Number(animeId),
+      title: info.title,
+      num_episodes: info.numEpisodes,
+      main_picture: info.mainPicture
+    };
+  }
+
+  // Exact ID when the site provides one, otherwise a title search. The page's ID is
+  // only trusted if MAL's names for it resemble the page title: a site bug or a stray
+  // ID must never put a different anime on the user's list.
+  async resolveAnime(title, malId) {
+    if (malId > 0) {
+      try {
+        const info = await this.getAnimeInfo(malId);
+        const byId = await this.getAnimeById(malId);
+        const score = title ? Math.max(0, ...(info.names || []).map(n => this._similarity(title, n))) : 1;
+        if (byId && score >= MAL_ID_MIN_TITLE_SCORE) return byId;
+        if (byId) console.warn(`[AniSync] Page MAL ID ${malId} (${byId.title}) doesn't match "${title}" — using title search`);
+      } catch (err) {
+        console.warn('[AniSync] MAL ID lookup failed, falling back to title search:', err.message);
+      }
+    }
+    return this.searchAnime(title);
   }
 
   // Fetch the user's current list status for an anime (always fresh, never cached)

@@ -7,6 +7,8 @@ const ANISYNC_EDITION = {
   name: 'full',
   // Remote site list (null = bundled list only)
   sitesUrl: 'https://anisync-api.YOUR-SUBDOMAIN.workers.dev/sites',
+  // Read the public site index (EverythingMoe) directly every 12h: new mirrors in, dead ones out
+  siteIndex: true,
   // Bundled fallback list, relative to the extension root
   bundledSitesPath: 'cloudflare-worker/sites.json',
   // true  = the manifest content script runs everywhere; enabling a site just adds it to the list

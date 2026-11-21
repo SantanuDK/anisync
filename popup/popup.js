@@ -273,6 +273,39 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.set({ settings });
   });
 
+  // ---------- Site list freshness (full edition) ----------
+  const siteListRow = document.getElementById('site-list-row');
+  const siteListInfo = document.getElementById('site-list-info');
+  const btnRefreshSites = document.getElementById('btn-refresh-sites');
+
+  function renderSiteList(meta, canRefresh) {
+    siteListRow.classList.toggle('hidden', !canRefresh);
+    if (!meta) {
+      siteListInfo.textContent = 'Not loaded yet';
+      return;
+    }
+    let text = `${meta.sites} sites · ${meta.domains} domains · checked ${formatTimeAgo(meta.checkedAt)} (${meta.source})`;
+    const ch = meta.lastChange;
+    if (ch) text += ` · last change ${formatTimeAgo(ch.at)}: +${ch.added.length} / −${ch.removed.length}`;
+    siteListInfo.textContent = text;
+    siteListInfo.title = ch ? `Added: ${ch.added.join(', ') || '—'}\nRemoved: ${ch.removed.join(', ') || '—'}` : '';
+  }
+
+  chrome.runtime.sendMessage({ type: 'GET_STATUS' }).then((res) => {
+    if (res) renderSiteList(res.siteList, res.canRefreshSites);
+  }).catch(() => {});
+
+  btnRefreshSites.addEventListener('click', async () => {
+    btnRefreshSites.disabled = true;
+    btnRefreshSites.textContent = 'Updating...';
+    try {
+      const res = await chrome.runtime.sendMessage({ type: 'REFRESH_SITES_NOW' });
+      renderSiteList(res?.siteList, true);
+    } catch (_) {}
+    btnRefreshSites.disabled = false;
+    btnRefreshSites.textContent = 'Update now';
+  });
+
   // Clear cached title matches so the next sync re-searches MAL
   btnClearCache.addEventListener('click', async () => {
     btnClearCache.disabled = true;

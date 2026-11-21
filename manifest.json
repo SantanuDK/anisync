@@ -29,6 +29,7 @@
     "https://api.myanimelist.net/*",
     "https://myanimelist.net/*",
     "https://api.aniskip.com/*",
+    "https://everythingmoe.com/*",
     "https://anisync-api.YOUR-SUBDOMAIN.workers.dev/*"
   ],
   "content_scripts": [
