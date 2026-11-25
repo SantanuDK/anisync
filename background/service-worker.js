@@ -16,7 +16,10 @@ const DEFAULT_SETTINGS = {
   syncThreshold: 80,
   notificationsEnabled: true,
   autoUpdateStatus: true,
-  useAniSkip: true
+  useAniSkip: true,
+  trackManga: true,
+  // Off by default: marks Rewatching / Rereading on MAL and counts finished rewatches
+  trackRewatches: false
 };
 
 // ---------- Supported site list ----------
@@ -51,6 +54,24 @@ async function getSupportedDomains() {
     supportedDomainsCache = new Set(supported_domains);
   }
   return supportedDomainsCache;
+}
+
+let supportedMangaDomainsCache = null;
+
+async function getSupportedMangaDomains() {
+  if (!supportedMangaDomainsCache) {
+    const { supported_manga_domains = [] } = await chrome.storage.local.get('supported_manga_domains');
+    supportedMangaDomainsCache = new Set(supported_manga_domains);
+  }
+  return supportedMangaDomainsCache;
+}
+
+function hostInSet(hostname, set) {
+  const parts = (hostname || '').toLowerCase().replace(/^www\./, '').split('.');
+  for (let i = 0; i < parts.length - 1; i++) {
+    if (set.has(parts.slice(i).join('.'))) return true;
+  }
+  return false;
 }
 
 async function isSupportedHost(hostname) {
@@ -161,13 +182,24 @@ if (chrome.permissions?.onAdded) {
 // at least MIN_REMOTE_DOMAINS domains, and not shrinking below 60% of what we have
 // (protects against an outage, a format change or a half-empty response wiping sites).
 const MIN_REMOTE_DOMAINS = 100;
+const MIN_REMOTE_MANGA_DOMAINS = 50;
 const MAX_SHRINK_RATIO = 0.6;
+
+function listDiff(current, next) {
+  const before = new Set(current);
+  const after = new Set(next);
+  return {
+    added: next.filter(d => !before.has(d)),
+    removed: current.filter(d => !after.has(d))
+  };
+}
 
 async function saveSiteData(data, source, { checkPlausible = false } = {}) {
   const domains = collectDomains(data);
   if (domains.length === 0) return false;
 
-  const { supported_domains: current = [] } = await chrome.storage.local.get('supported_domains');
+  const { supported_domains: current = [], supported_manga_domains: currentManga = [], site_list_meta: prevMeta } =
+    await chrome.storage.local.get(['supported_domains', 'supported_manga_domains', 'site_list_meta']);
   if (checkPlausible) {
     if (domains.length < MIN_REMOTE_DOMAINS) {
       throw new Error(`only ${domains.length} domains — looks broken, keeping current list`);
@@ -177,26 +209,47 @@ async function saveSiteData(data, source, { checkPlausible = false } = {}) {
     }
   }
 
-  const before = new Set(current);
-  const after = new Set(domains);
-  const added = domains.filter(d => !before.has(d));
-  const removed = current.filter(d => !after.has(d));
+  // Manga readers: same safety rules, but a bad manga list only keeps the old manga
+  // list; it never blocks the anime update. Sources without manga (the old server
+  // list) leave the manga list as it is.
+  let mangaDomains = currentManga;
+  let mangaSites = prevMeta?.mangaSites || 0;
+  if (Array.isArray(data.mangaDomains) || Array.isArray(data.mangaSites)) {
+    const next = collectDomains({ domains: data.mangaDomains, sites: data.mangaSites });
+    const plausible = !checkPlausible || (next.length >= MIN_REMOTE_MANGA_DOMAINS &&
+      !(currentManga.length > 0 && next.length < currentManga.length * MAX_SHRINK_RATIO));
+    if (plausible && next.length > 0) {
+      mangaDomains = next;
+      mangaSites = Array.isArray(data.mangaSites) ? data.mangaSites.length : 0;
+    } else if (next.length > 0 || checkPlausible) {
+      console.warn(`[AniSync] Manga list from ${source} looks broken (${next.length} domains) — keeping current manga list`);
+    }
+  }
+
+  const animeDiff = listDiff(current, domains);
+  const mangaDiff = listDiff(currentManga, mangaDomains);
+  const added = [...animeDiff.added, ...mangaDiff.added];
+  const removed = [...animeDiff.removed, ...mangaDiff.removed];
 
   await chrome.storage.local.set({
     dynamic_site_rules: data.sites,
     supported_domains: domains,
+    supported_manga_domains: mangaDomains,
     site_list_meta: {
       source,
       sites: Array.isArray(data.sites) ? data.sites.length : 0,
       domains: domains.length,
+      mangaSites,
+      mangaDomains: mangaDomains.length,
       checkedAt: Date.now(),
       // Keep the last real change, so the popup can show what changed
       lastChange: (added.length || removed.length) && current.length
         ? { at: Date.now(), added: added.slice(0, 50), removed: removed.slice(0, 50) }
-        : ((await chrome.storage.local.get('site_list_meta')).site_list_meta?.lastChange || null)
+        : (prevMeta?.lastChange || null)
     }
   });
   supportedDomainsCache = new Set(domains);
+  supportedMangaDomainsCache = new Set(mangaDomains);
   if (added.length || removed.length) {
     console.log(`[AniSync] Site list (${source}): +${added.length} -${removed.length}`, { added, removed });
   }
@@ -345,20 +398,21 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'LOGOUT': {
-          await chrome.storage.local.remove(['mal_tokens', 'mal_user_profile', 'current_playback']);
+          await chrome.storage.local.remove(['mal_tokens', 'mal_user_profile', 'current_playback', 'current_reading']);
           await chrome.action.setBadgeText({ text: '' });
           sendResponse({ success: true });
           break;
         }
 
         case 'GET_STATUS': {
-          const { mal_tokens, mal_user_profile, settings, recent_syncs, current_playback, dynamic_site_rules, site_list_meta } =
+          const { mal_tokens, mal_user_profile, settings, recent_syncs, current_playback, current_reading, dynamic_site_rules, site_list_meta } =
             await chrome.storage.local.get([
               'mal_tokens',
               'mal_user_profile',
               'settings',
               'recent_syncs',
               'current_playback',
+              'current_reading',
               'dynamic_site_rules',
               'site_list_meta'
             ]);
@@ -371,6 +425,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
             settings: { ...DEFAULT_SETTINGS, ...(settings || {}) },
             recentSyncs: recent_syncs || [],
             currentPlayback: current_playback || null,
+            currentReading: current_reading || null,
             dynamicSitesCount: dynamic_site_rules?.length || 0,
             siteList: site_list_meta || null,
             canRefreshSites: !!(ANISYNC_EDITION.sitesUrl || ANISYNC_EDITION.siteIndex)
@@ -389,21 +444,17 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         case 'SITE_STATUS': {
           const host = (message.hostname || '').toLowerCase().replace(/^www\./, '');
           const userSites = await getUserSites();
-          const builtin = await (async () => {
-            const domains = await getSupportedDomains();
-            const parts = host.split('.');
-            for (let i = 0; i < parts.length - 1; i++) {
-              if (domains.has(parts.slice(i).join('.'))) return true;
-            }
-            return false;
-          })();
+          const builtinAnime = hostInSet(host, await getSupportedDomains());
+          const builtinManga = hostInSet(host, await getSupportedMangaDomains());
           const userSite = userSites.find(s => host === s.domain || host.endsWith('.' + s.domain)) || null;
           const needingAccess = await getUserSitesNeedingAccess();
           sendResponse({
             success: true,
             edition: ANISYNC_EDITION.name,
             staticContentScripts: ANISYNC_EDITION.staticContentScripts,
-            builtin,
+            builtin: builtinAnime || builtinManga,
+            builtinAnime,
+            builtinManga,
             userSite,
             userSites,
             needingAccess
@@ -454,7 +505,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'UPDATE_PLAYBACK_STATUS': {
-          const { animeTitle, episodeNumber, malId, percentage, currentTime, duration, site, eligible } = message.data;
+          const { animeTitle, episodeNumber, malId, malTitle, percentage, currentTime, duration, site, eligible } = message.data;
           const { current_playback: prev } = await chrome.storage.local.get('current_playback');
 
           const sameShow = !!prev && normTitle(prev.animeTitle) === normTitle(animeTitle);
@@ -465,6 +516,8 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               animeTitle,
               episodeNumber,
               malId: malId || null,
+              // What it matched on MyAnimeList (shown in the popup, so a wrong match is visible)
+              malTitle: malTitle || null,
               percentage,
               // Furthest point reached in this episode (survives seeking back)
               maxPercentage: Math.max(percentage || 0, sameEpisode ? (prev.maxPercentage || prev.percentage || 0) : 0),
@@ -497,6 +550,42 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
           const { animeTitle, episodeNumber, duration, malId } = message.data || {};
           const plan = await buildSyncPlan(animeTitle, episodeNumber, duration, malId);
           sendResponse({ success: true, plan });
+          break;
+        }
+
+        // ----- Manga -----
+
+        case 'GET_MANGA_PLAN': {
+          const { mangaTitle, chapterNumber, malId } = message.data || {};
+          sendResponse({ success: true, plan: await buildMangaPlan(mangaTitle, chapterNumber, malId) });
+          break;
+        }
+
+        case 'UPDATE_READING_STATUS': {
+          await handleReadingStatus(message.data || {});
+          sendResponse({ success: true });
+          break;
+        }
+
+        case 'SYNC_CHAPTER': {
+          const { mangaTitle, chapterNumber, malId } = message.data || {};
+          sendResponse(await handleSyncChapter(mangaTitle, chapterNumber, malId));
+          break;
+        }
+
+        // Popup: "Wrong match?" -> always use this MAL entry for this title
+        case 'SET_MATCH_OVERRIDE': {
+          const { kind, title, malId } = message.data || {};
+          const k = kind === 'manga' ? 'manga' : 'anime';
+          const entry = await malClient.setOverride(k, title, malId);
+          // Show the new match right away
+          const key = k === 'manga' ? 'current_reading' : 'current_playback';
+          const { [key]: cur } = await chrome.storage.local.get(key);
+          const curTitle = k === 'manga' ? cur?.mangaTitle : cur?.animeTitle;
+          if (cur && normTitle(curTitle) === normTitle(title)) {
+            await chrome.storage.local.set({ [key]: { ...cur, malId: entry.id, malTitle: entry.title } });
+          }
+          sendResponse({ success: true, entry: { id: entry.id, title: entry.title } });
           break;
         }
 
@@ -661,18 +750,19 @@ function handleSyncEpisode(animeTitle, episodeNumber, malId = null) {
   return promise;
 }
 
-// Decide which list status to send, or null to leave it unchanged
-function decideStatus(listStatus, ep, totalEpisodes, autoUpdateStatus) {
+// Decide which list status to send, or null to leave it unchanged.
+// activeStatus is 'watching' for anime and 'reading' for manga.
+function decideStatus(listStatus, ep, totalEpisodes, autoUpdateStatus, activeStatus = 'watching') {
   const current = listStatus?.status || null;
   const isFinal = totalEpisodes > 0 && ep >= totalEpisodes;
 
   // Not on the list yet: an entry needs a status
-  if (!current) return isFinal ? 'completed' : 'watching';
+  if (!current) return isFinal ? 'completed' : activeStatus;
   if (!autoUpdateStatus) return null;
   if (isFinal) return 'completed';
-  if (current === 'watching') return null;
-  // plan_to_watch / on_hold / dropped -> resuming means watching
-  if (current !== 'completed') return 'watching';
+  if (current === activeStatus) return null;
+  // plan_to_watch / plan_to_read / on_hold / dropped -> resuming means watching / reading
+  if (current !== 'completed') return activeStatus;
   return null;
 }
 
@@ -687,9 +777,13 @@ async function doSyncEpisode(animeTitle, episodeNumber, malId = null) {
     return { success: false, error: 'Invalid title or episode number' };
   }
 
+  const { settings } = await chrome.storage.local.get('settings');
+  const s = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+
   const syncLockKey = `last_sync_${animeTitle.toLowerCase().trim()}`;
   const { [syncLockKey]: lastSyncedEpisode } = await chrome.storage.local.get(syncLockKey);
-  if (lastSyncedEpisode && lastSyncedEpisode >= ep) {
+  // With rewatch tracking on, a completed show must still reach MAL (to mark the rewatch)
+  if (!s.trackRewatches && lastSyncedEpisode && lastSyncedEpisode >= ep) {
     return { success: true, alreadySynced: true, message: `Episode ${ep} already synced.` };
   }
 
@@ -706,15 +800,17 @@ async function doSyncEpisode(animeTitle, episodeNumber, malId = null) {
     return { success: false, error: `Episode ${ep} exceeds ${anime.title}'s ${totalEpisodes} episodes — likely a wrong match` };
   }
 
+  if (s.trackRewatches && listStatus?.status === 'completed') {
+    return handleRepeat('anime', anime, ep, totalEpisodes, listStatus);
+  }
+
   const currentMALWatched = listStatus?.num_episodes_watched || 0;
   if (currentMALWatched >= ep) {
     await chrome.storage.local.set({ [syncLockKey]: currentMALWatched });
     return { success: true, alreadySynced: true, message: `MAL is already at episode ${currentMALWatched}.` };
   }
 
-  const { settings } = await chrome.storage.local.get('settings');
-  const autoUpdateStatus = (settings?.autoUpdateStatus ?? DEFAULT_SETTINGS.autoUpdateStatus) !== false;
-  const status = decideStatus(listStatus, ep, totalEpisodes, autoUpdateStatus);
+  const status = decideStatus(listStatus, ep, totalEpisodes, s.autoUpdateStatus !== false);
 
   const updateResult = await malClient.updateWatchProgress(anime.id, ep, status);
   await chrome.storage.local.set({ [syncLockKey]: ep });
@@ -739,4 +835,235 @@ async function doSyncEpisode(animeTitle, episodeNumber, malId = null) {
   );
 
   return { success: true, anime, updateResult };
+}
+
+// ---------- Manga (chapters) ----------
+//
+// The detector on a manga reader reports the title + chapter from the URL / page title,
+// how far down the chapter you are and how long you've actually been reading it. A
+// chapter counts as read when you reach its end, or when you move on to the next
+// chapter after reading this one for a while. Decimal chapters (10.5) count as the
+// whole chapter before them, because MyAnimeList only counts whole chapters, and
+// progress on MAL never moves backwards.
+
+// Moving on to the next chapter only counts the previous one after this much reading
+const NEXT_CHAPTER_MIN_SECONDS = 20;
+const NEXT_CHAPTER_WINDOW_MS = 2 * 60 * 60 * 1000;
+
+async function buildMangaPlan(mangaTitle, chapterNumber, malId = null) {
+  if (!mangaTitle) return { available: false, reason: 'missing data' };
+  const { settings } = await chrome.storage.local.get('settings');
+  if ({ ...DEFAULT_SETTINGS, ...(settings || {}) }.trackManga === false) {
+    return { available: true, eligible: false, reason: 'manga tracking is turned off' };
+  }
+  const token = await malClient.getValidAccessToken();
+  if (!token) return { available: false, reason: 'not logged in' };
+
+  const manga = await malClient.resolveManga(mangaTitle, malId);
+  if (!manga) return { available: true, eligible: false, reason: 'no confident MyAnimeList match' };
+
+  const chapter = Math.floor(Number(chapterNumber));
+  if (!(chapter >= 1)) {
+    return { available: true, eligible: false, malId: manga.id, malTitle: manga.title, reason: 'no chapter number on the page' };
+  }
+  const info = await malClient.getMangaInfo(manga.id);
+  if (info.numChapters > 0 && chapter > info.numChapters) {
+    return {
+      available: true, eligible: false, malId: manga.id, malTitle: manga.title,
+      reason: `${manga.title} has only ${info.numChapters} chapters`
+    };
+  }
+  return {
+    available: true,
+    eligible: true,
+    malId: manga.id,
+    malTitle: manga.title,
+    chapter,
+    numChapters: info.numChapters,
+    mediaType: info.mediaType
+  };
+}
+
+async function handleReadingStatus(data) {
+  const { mangaTitle, chapterNumber, malId, malTitle, progress, activeSeconds, site, eligible } = data;
+  const chapter = Number(chapterNumber);
+  if (!mangaTitle || !(chapter >= 0)) return;
+  const { current_reading: prev } = await chrome.storage.local.get('current_reading');
+
+  const sameManga = !!prev && normTitle(prev.mangaTitle) === normTitle(mangaTitle);
+  const sameChapter = sameManga && Number(prev.chapterNumber) === chapter;
+
+  await chrome.storage.local.set({
+    current_reading: {
+      mangaTitle,
+      chapterNumber: chapter,
+      malId: malId || null,
+      malTitle: malTitle || null,
+      progress: Math.min(100, Math.max(0, Math.round(progress || 0))),
+      maxProgress: Math.max(progress || 0, sameChapter ? (prev.maxProgress || 0) : 0),
+      activeSeconds: Math.max(activeSeconds || 0, sameChapter ? (prev.activeSeconds || 0) : 0),
+      eligible: !!eligible,
+      site,
+      updatedAt: Date.now()
+    }
+  });
+
+  // "Moved on to the next chapter" rule: 10 -> 11, 10 -> 10.5 and 10.5 -> 11 all count
+  // the chapter you left, if you spent a while on it (not just clicking through)
+  const prevChapter = Number(prev?.chapterNumber);
+  if (sameManga && !sameChapter &&
+      chapter > prevChapter && chapter <= prevChapter + 1 &&
+      prev.eligible &&
+      (prev.activeSeconds || 0) >= NEXT_CHAPTER_MIN_SECONDS &&
+      Date.now() - (prev.updatedAt || 0) < NEXT_CHAPTER_WINDOW_MS) {
+    handleSyncChapter(prev.mangaTitle, prevChapter, prev.malId).catch((err) => {
+      console.warn('[AniSync] Next-chapter sync failed:', err.message);
+    });
+  }
+}
+
+function handleSyncChapter(mangaTitle, chapterNumber, malId = null) {
+  const key = `manga#${(mangaTitle || '').toLowerCase().trim()}#${Math.floor(Number(chapterNumber))}`;
+  if (inFlightSyncs.has(key)) return inFlightSyncs.get(key);
+
+  const promise = doSyncChapter(mangaTitle, chapterNumber, malId)
+    .finally(() => inFlightSyncs.delete(key));
+  inFlightSyncs.set(key, promise);
+  return promise;
+}
+
+async function doSyncChapter(mangaTitle, chapterNumber, malId = null) {
+  const token = await malClient.getValidAccessToken();
+  if (!token) return { success: false, error: 'User is not logged in to MyAnimeList' };
+
+  const { settings } = await chrome.storage.local.get('settings');
+  const s = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+  if (s.trackManga === false) return { success: false, error: 'Manga tracking is turned off' };
+
+  const ch = Math.floor(Number(chapterNumber));
+  if (!mangaTitle || !(ch >= 1)) return { success: false, error: 'Invalid title or chapter number' };
+
+  const syncLockKey = `last_sync_manga_${mangaTitle.toLowerCase().trim()}`;
+  const { [syncLockKey]: lastSyncedChapter } = await chrome.storage.local.get(syncLockKey);
+  if (!s.trackRewatches && lastSyncedChapter && lastSyncedChapter >= ch) {
+    return { success: true, alreadySynced: true, message: `Chapter ${ch} already synced.` };
+  }
+
+  const manga = await malClient.resolveManga(mangaTitle, malId);
+  if (!manga) return { success: false, error: `No confident match for "${mangaTitle}" on MyAnimeList` };
+
+  // Always read the live list status; the search cache may be days old
+  const { numChapters, listStatus } = await malClient.getMangaListStatus(manga.id);
+  const totalChapters = numChapters || manga.num_chapters || 0;
+  if (totalChapters > 0 && ch > totalChapters) {
+    return { success: false, error: `Chapter ${ch} exceeds ${manga.title}'s ${totalChapters} chapters — likely a wrong match` };
+  }
+
+  if (s.trackRewatches && listStatus?.status === 'completed') {
+    return handleRepeat('manga', manga, ch, totalChapters, listStatus);
+  }
+
+  const currentRead = listStatus?.num_chapters_read || 0;
+  if (currentRead >= ch) {
+    await chrome.storage.local.set({ [syncLockKey]: currentRead });
+    return { success: true, alreadySynced: true, message: `MAL is already at chapter ${currentRead}.` };
+  }
+
+  const status = decideStatus(listStatus, ch, totalChapters, s.autoUpdateStatus !== false, 'reading');
+  const updateResult = await malClient.updateReadProgress(manga.id, ch, status);
+  await chrome.storage.local.set({ [syncLockKey]: ch });
+
+  const { recent_syncs = [] } = await chrome.storage.local.get('recent_syncs');
+  const syncRecord = {
+    kind: 'manga',
+    mangaId: manga.id,
+    title: manga.title,
+    chapter: ch,
+    totalChapters,
+    imageUrl: manga.main_picture?.medium || null,
+    syncedAt: Date.now()
+  };
+  const updatedRecent = [syncRecord, ...recent_syncs.filter(r => !(r.kind === 'manga' && r.mangaId === manga.id && r.chapter === ch))].slice(0, 20);
+  await chrome.storage.local.set({ recent_syncs: updatedRecent });
+
+  await flashBadge(`C${ch}`);
+  await showNotification('AniSync: Progress Synced!', `Updated ${manga.title} to Chapter ${ch} on MyAnimeList.`);
+
+  return { success: true, manga, updateResult };
+}
+
+// ---------- Rewatching / rereading (Preferences → Track Rewatches) ----------
+//
+// For an entry that is already Completed on MAL, an episode / chapter doesn't change
+// the count (it stays at the full total). Instead:
+//  - the first non-final episode turns on MAL's "Rewatching" (manga: "Rereading"),
+//  - reaching the final episode while rewatching adds 1 to "times rewatched" and
+//    turns the flag off again.
+// Watching only the final episode of a completed show (no rewatch running) does
+// nothing, so replaying a favourite finale can't count as a whole rewatch.
+// Progress inside a rewatch is kept locally, because MAL's count stays at the total.
+
+const REPEAT_FIELDS = {
+  anime: { flag: 'is_rewatching', times: 'num_times_rewatched', verb: 'rewatching', unit: 'Episode', badge: 'EP' },
+  manga: { flag: 'is_rereading', times: 'num_times_reread', verb: 'rereading', unit: 'Chapter', badge: 'C' }
+};
+
+async function handleRepeat(kind, entry, n, total, listStatus) {
+  const f = REPEAT_FIELDS[kind];
+  const key = `repeat_${kind}_${entry.id}`;
+  const { [key]: local } = await chrome.storage.local.get(key);
+  const active = listStatus?.[f.flag] === true;
+  const isFinal = total > 0 && n >= total;
+  const Verb = f.verb[0].toUpperCase() + f.verb.slice(1);
+
+  if (!active) {
+    if (isFinal) {
+      return { success: true, alreadySynced: true, message: `${entry.title} is completed; only its last ${f.unit.toLowerCase()} doesn't start a ${f.verb.replace('ing', '')}.` };
+    }
+    await malClient.patchListStatus(kind, entry.id, { [f.flag]: true });
+    await chrome.storage.local.set({ [key]: { progress: n, at: Date.now() } });
+    await recordRepeat(kind, entry, n, total);
+    await flashBadge(`${f.badge}${n}`);
+    await showNotification(`AniSync: ${Verb}`, `Started ${f.verb} ${entry.title} on MyAnimeList (${f.unit} ${n}).`);
+    return { success: true, repeat: 'started', message: `Started ${f.verb} ${entry.title}.` };
+  }
+
+  if (!isFinal) {
+    if (local && local.progress >= n) {
+      return { success: true, alreadySynced: true, message: `${f.unit} ${n} already counted for this ${f.verb.replace('ing', '')}.` };
+    }
+    await chrome.storage.local.set({ [key]: { progress: n, at: Date.now() } });
+    await recordRepeat(kind, entry, n, total);
+    await flashBadge(`${f.badge}${n}`);
+    return { success: true, repeat: 'progress', message: `${Verb} ${entry.title}: ${f.unit} ${n}.` };
+  }
+
+  // Final episode / chapter while rewatching: count it. The current counter comes from
+  // MAL's reply to an update (a plain GET doesn't include it). If MAL doesn't send it,
+  // only turn the flag off: never guess and overwrite the user's count.
+  const current = await malClient.patchListStatus(kind, entry.id, { [f.flag]: true });
+  const times = Number.isInteger(current?.[f.times]) ? current[f.times] : null;
+  const fields = { [f.flag]: false };
+  if (times != null) fields[f.times] = times + 1;
+  await malClient.patchListStatus(kind, entry.id, fields);
+  await chrome.storage.local.remove(key);
+  await recordRepeat(kind, entry, n, total);
+  await flashBadge(`${f.badge}${n}`);
+  const countText = times != null ? ` (${times + 1} time${times + 1 === 1 ? '' : 's'} now)` : '';
+  await showNotification(`AniSync: Finished ${f.verb}`, `Finished ${f.verb} ${entry.title}${countText}.`);
+  if (times == null) console.warn(`[AniSync] MAL didn't return ${f.times}; turned ${f.flag} off without changing the count`);
+  return { success: true, repeat: 'finished', timesAfter: times != null ? times + 1 : null, message: `Finished ${f.verb} ${entry.title}${countText}.` };
+}
+
+async function recordRepeat(kind, entry, n, total) {
+  const { recent_syncs = [] } = await chrome.storage.local.get('recent_syncs');
+  const record = kind === 'manga'
+    ? { kind: 'manga', mangaId: entry.id, title: entry.title, chapter: n, totalChapters: total, repeat: true,
+      imageUrl: entry.main_picture?.medium || null, syncedAt: Date.now() }
+    : { animeId: entry.id, title: entry.title, episode: n, totalEpisodes: total, repeat: true,
+      imageUrl: entry.main_picture?.medium || null, syncedAt: Date.now() };
+  const same = (r) => kind === 'manga'
+    ? r.kind === 'manga' && r.mangaId === entry.id && r.chapter === n
+    : r.kind !== 'manga' && r.animeId === entry.id && r.episode === n;
+  await chrome.storage.local.set({ recent_syncs: [record, ...recent_syncs.filter(r => !same(r))].slice(0, 20) });
 }

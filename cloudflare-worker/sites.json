@@ -1,8 +1,8 @@
 {
-  "version": "1.0.0",
-  "updatedAt": "2026-11-21T14:57:17.857Z",
-  "totalSites": 106,
-  "totalDomains": 322,
+  "version": "1.1.0",
+  "updatedAt": "2026-11-24T12:48:08.766Z",
+  "totalSites": 108,
+  "totalDomains": 329,
   "domains": [
     "123anime.la",
     "123animehub.cc",
@@ -78,6 +78,7 @@
     "animego.net",
     "animeheaven.me",
     "animehunter.to",
+    "animei.space",
     "animejoker.com",
     "animekai.be",
     "animekai.ro",
@@ -122,6 +123,7 @@
     "animotvslash.org",
     "animotvslash.ru",
     "animotvslash.to",
+    "anipm.pk",
     "anipub.xyz",
     "anirex.to",
     "anisakura.xyz",
@@ -149,6 +151,7 @@
     "aniwaves.ru",
     "aniwaves.tv",
     "aniwitch.cc",
+    "aniwoo.pw",
     "aniworld.domains",
     "aniworld.to",
     "anixeo.tv",
@@ -190,6 +193,7 @@
     "guts.to",
     "hianime.at",
     "hianime.de.com",
+    "hianime.help",
     "hianime.ing",
     "hianimes.cz",
     "hianimes.ru",
@@ -198,6 +202,7 @@
     "hianimez.org",
     "hidive.com",
     "hindianimeverse.org",
+    "hls.hiasian.to",
     "hopmarks.com",
     "hulu.com",
     "hypeanime.com",
@@ -214,6 +219,7 @@
     "kaa.to",
     "kaas.ro",
     "kaas.to",
+    "kadar.lol",
     "kaorii.app",
     "kartoons.to",
     "kawaiianime.cc",
@@ -232,6 +238,7 @@
     "koianime.lol",
     "kooanime.lol",
     "kotoplay.to",
+    "kototv.to",
     "krussdomi.com",
     "kuroanime.lol",
     "kuroko.cc",
@@ -390,10 +397,11 @@
     {
       "id": "anipm",
       "name": "ani.pm",
-      "primaryUrl": "https://ani.pm/",
+      "primaryUrl": "https://anipm.pk/",
       "domains": [
         "ani.nz",
         "ani.pm",
+        "anipm.pk",
         "ume.to"
       ]
     },
@@ -723,6 +731,24 @@
         "anigato.lol",
         "jjba.lol",
         "weebtube.cc"
+      ]
+    },
+    {
+      "id": "kototv",
+      "name": "KotoTV",
+      "primaryUrl": "https://kototv.to/",
+      "domains": [
+        "hianime.help",
+        "hls.hiasian.to",
+        "kototv.to"
+      ]
+    },
+    {
+      "id": "animei",
+      "name": "Animei",
+      "primaryUrl": "https://animei.space/",
+      "domains": [
+        "animei.space"
       ]
     },
     {
@@ -1135,12 +1161,14 @@
         "anivault.lol",
         "aniwatch.cx",
         "aniwitch.cc",
+        "aniwoo.pw",
         "anixx.fun",
         "cihuynime.net",
         "cove-ani.online",
         "dragonroll.to",
         "fanyme.net",
         "gojolive.site",
+        "kadar.lol",
         "koianime.lol",
         "sakusaku.to",
         "senpaiflix.fun",
@@ -1391,6 +1419,1935 @@
       "domains": [
         "animedub.app",
         "kartoons.to"
+      ]
+    }
+  ],
+  "totalMangaSites": 169,
+  "totalMangaDomains": 368,
+  "mangaDomains": [
+    "001.funbe.org",
+    "001.toonkor.net",
+    "18porncomic.com",
+    "1manga.co",
+    "2xstorage.com",
+    "a15c.com",
+    "acloud15.com",
+    "allmanga.to",
+    "app.ninekon.com",
+    "aquareader.org",
+    "asurascans.com",
+    "atsu.moe",
+    "b5.blacktoon.black",
+    "baetoon.com",
+    "baozimh.com",
+    "baozimh.org",
+    "bato1.com",
+    "batoto18.com",
+    "bbato.com",
+    "beehentai.com",
+    "berripix.com",
+    "beta.asurascans.com",
+    "blacktoon.cc",
+    "blacktoon.fans",
+    "blacktoon426.com",
+    "blacktoongo.com",
+    "bookwalker.com",
+    "bookwalker.jp",
+    "bzmh.org",
+    "ch.manhuarmtl.com",
+    "chapmanganato.com",
+    "chikari.moe",
+    "clanmanhwa.com",
+    "cocomic.co",
+    "comic.pixiv.net",
+    "comick.art",
+    "comick.live",
+    "comickz.co.uk",
+    "comicland.org",
+    "comico.moe",
+    "comics.inkr.com",
+    "comik.to",
+    "comix.to",
+    "comix.ws",
+    "comizy.io",
+    "coolmic.me",
+    "cubari.moe",
+    "danke.moe",
+    "danmeinovel.com",
+    "daycomics.me",
+    "demonicscans.org",
+    "divascans.com",
+    "doujinhq.club",
+    "dream-manga.com",
+    "dynasty-scans.com",
+    "fanfox.net",
+    "flamecomics.xyz",
+    "freemanga.org",
+    "freemangatop.com",
+    "freemanhua.org",
+    "freemanhwa.net",
+    "fropi.net",
+    "funbe-juso.com",
+    "funbe.site",
+    "fxfx275.com",
+    "global.bookwalker.jp",
+    "godamh.com",
+    "godamh.org",
+    "goodtoon008.com",
+    "goodtoon1.top",
+    "hachiraw.win",
+    "hachirumi.com",
+    "harimanga.co.uk",
+    "harimanga.vip",
+    "hentai20.io",
+    "hentai3z.cc",
+    "hentara.com",
+    "henthub.org",
+    "heytoon.net",
+    "hiperdex.com",
+    "hiperdex.tv",
+    "hivescans.com",
+    "hotcomics.io",
+    "hotcomics.me",
+    "imgcloud5.net",
+    "jestful.net",
+    "jjaptoon008.com",
+    "jmanga.org",
+    "jp.manhuarmtl.com",
+    "jpbookstore.com",
+    "justmanga.cc",
+    "kagane.cx",
+    "kagane.moe",
+    "kagane.net",
+    "kagane.org",
+    "kagane.si",
+    "kagane.to",
+    "kairomanhwa.com",
+    "kakamanga.com",
+    "kaliscans.org",
+    "katamanga.com",
+    "kingofshojo.com",
+    "klmanga.talk",
+    "klto9.com",
+    "klz9.com",
+    "kmanga.kodansha.com",
+    "kobo.com",
+    "komix.to",
+    "korsite.net",
+    "kr.manhuarmtl.com",
+    "kunmanga.co.uk",
+    "kurahentai.com",
+    "kuramanga.com",
+    "lewdmanhwa.com",
+    "lezhin.com",
+    "lezhinus.com",
+    "lgbtoon.com",
+    "likemanga.co.uk",
+    "likemanga.in",
+    "likemanga.ink",
+    "likemanga.vip",
+    "lilymanga.net",
+    "linkmanga.com",
+    "luacomic.org",
+    "lunarx.to",
+    "m.fanfox.net",
+    "m.manganelo.com",
+    "madaradex.org",
+    "manga-bay.biz",
+    "manga-bay.org",
+    "manga-doom.com",
+    "manga.guru",
+    "manga1000.top",
+    "manga1001.xyz",
+    "manga18.club",
+    "manga18fx.com",
+    "manga18h.com",
+    "manga4life.com",
+    "mangaball.com",
+    "mangabat.com",
+    "mangabats.com",
+    "mangaberri.com",
+    "mangabuddy.com",
+    "mangabuddy.space",
+    "mangabuddy1.co.uk",
+    "mangacherri.com",
+    "mangack.com",
+    "mangacloud.org",
+    "mangacute.com",
+    "mangade.io",
+    "mangadex.org",
+    "mangadistrict.com",
+    "mangadot.net",
+    "mangafire.to",
+    "mangaforest.me",
+    "mangaforfree.com",
+    "mangafox.fun",
+    "mangafox.la",
+    "mangafreak.me",
+    "mangagg.com",
+    "mangago.me",
+    "mangago.zone",
+    "mangagun.net",
+    "mangahaven.net",
+    "mangahere.cc",
+    "mangahere.onl",
+    "mangahome.com",
+    "mangahot.org",
+    "mangahub.io",
+    "mangairo.com",
+    "mangak.io",
+    "mangakakalot.com",
+    "mangakakalot.fun",
+    "mangakakalot.gg",
+    "mangakakalove.com",
+    "mangakatana.com",
+    "mangakawaii.fr",
+    "mangakawaii.io",
+    "mangakoma.net",
+    "mangalegend.com",
+    "mangamikan.com",
+    "mangamillion.shueisha.co.jp",
+    "mangamirai.com",
+    "mangamob.com",
+    "mangamonk.com",
+    "manganami.com",
+    "manganato.com",
+    "manganato.gg",
+    "manganel.me",
+    "manganow.to",
+    "mangaonline.fun",
+    "mangapill.com",
+    "mangaplaza.com",
+    "mangaplus.shueisha.co.jp",
+    "mangapuma.com",
+    "mangaraw.best",
+    "mangaraw.org",
+    "mangaraw4u.com",
+    "mangaread.org",
+    "mangareader.site",
+    "mangasee123.com",
+    "mangastash.org",
+    "mangasushi.org",
+    "mangataro.org",
+    "mangatoday.fun",
+    "mangatoto.online",
+    "mangatown.com",
+    "mangatx.cc",
+    "mangavyvy.com",
+    "mangavyvy.net",
+    "mangaxo.com",
+    "mangaxyz.com",
+    "mangayy.org",
+    "mangazin.org",
+    "manhuabuddy.com",
+    "manhuahot.com",
+    "manhuamanhwa.com",
+    "manhuaplus.com",
+    "manhuaplus.top",
+    "manhuarmtl.com",
+    "manhuascans.org",
+    "manhuatop.org",
+    "manhuaus.club",
+    "manhwa18.cc",
+    "manhwa18.com",
+    "manhwabuddy.com",
+    "manhwaclan.co.uk",
+    "manhwaden.com",
+    "manhwaepisodes.com",
+    "manhwah.com",
+    "manhwahub.to",
+    "manhwalike.com",
+    "manhwanex.com",
+    "manhwasusu.com",
+    "manhwato.com",
+    "manhwatoon.app",
+    "manhwatoon.me",
+    "manhwatoons.com",
+    "manhwatop.com",
+    "manhwatube.com",
+    "manta.net",
+    "marumaru100.com",
+    "mgeko.cc",
+    "mgjinx.vip",
+    "mgread.io",
+    "mkissa.to",
+    "mn4u.net",
+    "mtlmanga.org",
+    "n5.newtoki.top",
+    "natomanga.com",
+    "natumanga.com",
+    "nav.telltome.net",
+    "nelomanga.com",
+    "nelomanga.net",
+    "newtoki1.org",
+    "newxtoon3.com",
+    "niadd.com",
+    "nicomanga.com",
+    "nihonkuni.com",
+    "ninemanga.com",
+    "novelkin.com",
+    "ntk01.com",
+    "nyxscans.com",
+    "old.rawkuma.net",
+    "omanga.to",
+    "omegascans.org",
+    "omoi.com",
+    "onemanga.info",
+    "onisaga.com",
+    "oriyami.com",
+    "otakuoasis.online",
+    "pandatoons.com",
+    "pornhwadb.com",
+    "pornhwareader.com",
+    "pornhwaz.com",
+    "projectjust.xyz",
+    "projectsuki.com",
+    "proxy.cubari.moe",
+    "qtoon.org",
+    "ravenscans.org",
+    "raw.senmanga.com",
+    "raw1001.net",
+    "rawdevart.art",
+    "rawfree.me",
+    "rawinu.com",
+    "rawjp.co",
+    "rawkuma.net",
+    "rawlazy.io",
+    "rawlazy.rs",
+    "rawotaku.com",
+    "rawsakura.org",
+    "rawuwu.com",
+    "rawuwu.net",
+    "readfreemanga.net",
+    "readfreemanhwa.com",
+    "readmanga.cc",
+    "readmanhua.org",
+    "readmanhwa.top",
+    "readmanhwas.com",
+    "reimanga.com",
+    "rokaricomics.com",
+    "roliascan.com",
+    "sbxh9.com",
+    "shonenmangaz.com",
+    "silentquill.net",
+    "spoilerplus.tv",
+    "storage.zonatmo.org",
+    "swarm.ws",
+    "syosetu.ro",
+    "taadd.com",
+    "tapas.io",
+    "tappytoon.com",
+    "templescan.net",
+    "tenmanga.com",
+    "theblank.net",
+    "todaymanga.com",
+    "toki35.com",
+    "toomics.com",
+    "toomics.in",
+    "toon18x.com",
+    "toonflix.app",
+    "toongod.org",
+    "toonhey.com",
+    "toonily.com",
+    "toonily.me",
+    "toonitube.com",
+    "toonkor.site",
+    "toonkotsu.com",
+    "toontop.io",
+    "toonverse.net",
+    "toonx.to",
+    "toonz.to",
+    "toraka.com",
+    "twbzmg.com",
+    "vymanga.co",
+    "vymanga.com",
+    "vymanga.net",
+    "vymanga.site",
+    "webnex.cc",
+    "webtoon.xyz",
+    "webtoonclub.com",
+    "webtooni.net",
+    "webtoons.com",
+    "webtoonscan.org",
+    "weebcentral.com",
+    "weloma.art",
+    "wfwf353.com",
+    "wfwf999.com",
+    "wtwt280.com",
+    "xbato.co.uk",
+    "xbato.online",
+    "xbato.site",
+    "xcomic.me",
+    "xcomic.net",
+    "xn--h10b90bby9a7jkc4f.com",
+    "xn--ij2bx6jk1s.co",
+    "xn--kd6b44m.live",
+    "xn--ph1bph0az41x.com",
+    "xn--vg1b002axlc8ts.com",
+    "xn--yq5bv6mzmcca.org",
+    "xtoonhub1.com",
+    "yaoi.me",
+    "yaoiscan.com",
+    "yomimanga.com",
+    "yona.to",
+    "zazamanga.com",
+    "zeroscann.com",
+    "zinmanga.net"
+  ],
+  "mangaSites": [
+    {
+      "id": "comix",
+      "name": "Comix",
+      "primaryUrl": "https://comix.to/",
+      "domains": [
+        "comix.to",
+        "comix.ws"
+      ]
+    },
+    {
+      "id": "mangadotnet",
+      "name": "Mangadot",
+      "primaryUrl": "https://mangadot.net/",
+      "domains": [
+        "mangadot.net"
+      ]
+    },
+    {
+      "id": "atsumoe",
+      "name": "Atsumaru",
+      "primaryUrl": "https://atsu.moe/",
+      "domains": [
+        "atsu.moe"
+      ]
+    },
+    {
+      "id": "mangaball",
+      "name": "Mangaball",
+      "primaryUrl": "https://mangaball.com/",
+      "domains": [
+        "lgbtoon.com",
+        "mangaball.com"
+      ]
+    },
+    {
+      "id": "mangafire",
+      "name": "MangaFire",
+      "primaryUrl": "https://mangafire.to/home",
+      "domains": [
+        "mangafire.to",
+        "mangahaven.net"
+      ]
+    },
+    {
+      "id": "toonkotsu",
+      "name": "Toonkotsu",
+      "primaryUrl": "https://toonkotsu.com/",
+      "domains": [
+        "freemanga.org",
+        "freemanhua.org",
+        "readfreemanga.net",
+        "readfreemanhwa.com",
+        "readmanhua.org",
+        "readmanhwa.top",
+        "toonkotsu.com",
+        "xbato.online",
+        "xbato.site"
+      ]
+    },
+    {
+      "id": "mangasee",
+      "name": "Weeb Central",
+      "primaryUrl": "https://weebcentral.com/",
+      "domains": [
+        "manga4life.com",
+        "mangasee123.com",
+        "weebcentral.com"
+      ]
+    },
+    {
+      "id": "yaoime",
+      "name": "yaoi.me",
+      "primaryUrl": "https://yaoi.me/",
+      "domains": [
+        "yaoi.me"
+      ]
+    },
+    {
+      "id": "mangago",
+      "name": "Mangago",
+      "primaryUrl": "https://www.mangago.me/",
+      "domains": [
+        "mangago.me",
+        "mangago.zone"
+      ]
+    },
+    {
+      "id": "allmanga",
+      "name": "MKissa Manga",
+      "primaryUrl": "https://mkissa.to/manga",
+      "domains": [
+        "allmanga.to",
+        "mkissa.to"
+      ]
+    },
+    {
+      "id": "chikari",
+      "name": "chikari.moe",
+      "primaryUrl": "https://chikari.moe/",
+      "domains": [
+        "chikari.moe"
+      ]
+    },
+    {
+      "id": "onisaga",
+      "name": "OniSaga",
+      "primaryUrl": "https://onisaga.com/",
+      "domains": [
+        "onisaga.com"
+      ]
+    },
+    {
+      "id": "bookwalker",
+      "name": "Bookwalker",
+      "primaryUrl": "https://bookwalker.com/",
+      "domains": [
+        "bookwalker.com",
+        "bookwalker.jp",
+        "global.bookwalker.jp"
+      ]
+    },
+    {
+      "id": "rakutenkobo",
+      "name": "Rakuten Kobo",
+      "primaryUrl": "https://www.kobo.com/en/ebooks/manga",
+      "domains": [
+        "kobo.com"
+      ]
+    },
+    {
+      "id": "mangapeak",
+      "name": "MangaTaro",
+      "primaryUrl": "https://mangataro.org/home",
+      "domains": [
+        "mangataro.org",
+        "roliascan.com"
+      ]
+    },
+    {
+      "id": "mangabuddy",
+      "name": "MangaK",
+      "primaryUrl": "https://mangak.io/home",
+      "domains": [
+        "comizy.io",
+        "mangabuddy.com",
+        "mangacute.com",
+        "mangaforest.me",
+        "mangak.io",
+        "mangamonk.com",
+        "mangapuma.com",
+        "mangaxyz.com",
+        "manhwatube.com"
+      ]
+    },
+    {
+      "id": "xcomic",
+      "name": "XComic",
+      "primaryUrl": "https://xcomic.me/",
+      "domains": [
+        "comik.to",
+        "xcomic.me",
+        "xcomic.net",
+        "yona.to"
+      ]
+    },
+    {
+      "id": "swarm",
+      "name": "Swarm",
+      "primaryUrl": "https://swarm.ws/",
+      "domains": [
+        "swarm.ws"
+      ]
+    },
+    {
+      "id": "mangakatana",
+      "name": "MangaKatana",
+      "primaryUrl": "https://mangakatana.com/",
+      "domains": [
+        "mangakatana.com"
+      ]
+    },
+    {
+      "id": "mangacloud",
+      "name": "MangaCloud",
+      "primaryUrl": "https://mangacloud.org/",
+      "domains": [
+        "mangacloud.org"
+      ]
+    },
+    {
+      "id": "cubariproxy",
+      "name": "Cubari Proxy",
+      "primaryUrl": "https://proxy.cubari.moe/",
+      "domains": [
+        "cubari.moe",
+        "manga.guru",
+        "proxy.cubari.moe"
+      ]
+    },
+    {
+      "id": "vyvymanga",
+      "name": "VyManga",
+      "primaryUrl": "https://mangavyvy.com/",
+      "domains": [
+        "mangavyvy.com",
+        "mangavyvy.net",
+        "vymanga.co",
+        "vymanga.com",
+        "vymanga.net"
+      ]
+    },
+    {
+      "id": "likemangaio",
+      "name": "LikeManga",
+      "primaryUrl": "https://likemanga.ink/",
+      "domains": [
+        "likemanga.in",
+        "likemanga.ink",
+        "mangayy.org",
+        "mgread.io"
+      ]
+    },
+    {
+      "id": "mangaplus",
+      "name": "MANGA Plus",
+      "primaryUrl": "https://mangaplus.shueisha.co.jp/",
+      "domains": [
+        "mangamillion.shueisha.co.jp",
+        "mangaplus.shueisha.co.jp"
+      ]
+    },
+    {
+      "id": "toonz",
+      "name": "Toonz",
+      "primaryUrl": "https://toonz.to/",
+      "domains": [
+        "toonx.to",
+        "toonz.to"
+      ]
+    },
+    {
+      "id": "mangahub",
+      "name": "MangaHub",
+      "primaryUrl": "https://mangahub.io/",
+      "domains": [
+        "1manga.co",
+        "mangafox.fun",
+        "mangahere.onl",
+        "mangahub.io",
+        "mangakakalot.fun",
+        "manganel.me",
+        "mangaonline.fun",
+        "mangareader.site",
+        "mangatoday.fun",
+        "onemanga.info"
+      ]
+    },
+    {
+      "id": "dynastyscans",
+      "name": "Dynasty Reader",
+      "primaryUrl": "https://dynasty-scans.com/",
+      "domains": [
+        "dynasty-scans.com"
+      ]
+    },
+    {
+      "id": "manganato",
+      "name": "Manganato.gg",
+      "primaryUrl": "https://www.manganato.gg/",
+      "domains": [
+        "2xstorage.com",
+        "batoto18.com",
+        "bbato.com",
+        "chapmanganato.com",
+        "clanmanhwa.com",
+        "comick.art",
+        "comick.live",
+        "comickz.co.uk",
+        "kakamanga.com",
+        "katamanga.com",
+        "likemanga.co.uk",
+        "m.manganelo.com",
+        "mangabat.com",
+        "mangabats.com",
+        "mangabuddy1.co.uk",
+        "mangairo.com",
+        "mangakakalot.com",
+        "mangakakalot.gg",
+        "mangakakalove.com",
+        "manganato.com",
+        "manganato.gg",
+        "nelomanga.net",
+        "shonenmangaz.com",
+        "xbato.co.uk",
+        "zeroscann.com"
+      ]
+    },
+    {
+      "id": "webnex",
+      "name": "Webnex",
+      "primaryUrl": "https://webnex.cc/",
+      "domains": [
+        "webnex.cc"
+      ]
+    },
+    {
+      "id": "comico",
+      "name": "comico.moe",
+      "primaryUrl": "https://comico.moe/",
+      "domains": [
+        "comico.moe"
+      ]
+    },
+    {
+      "id": "mangastash",
+      "name": "Mangastash",
+      "primaryUrl": "https://mangastash.org/",
+      "domains": [
+        "mangastash.org"
+      ]
+    },
+    {
+      "id": "coolmic",
+      "name": "Coolmic",
+      "primaryUrl": "https://coolmic.me/",
+      "domains": [
+        "coolmic.me"
+      ]
+    },
+    {
+      "id": "azuki",
+      "name": "Omoi",
+      "primaryUrl": "https://www.omoi.com/",
+      "domains": [
+        "omoi.com"
+      ]
+    },
+    {
+      "id": "zinmanga",
+      "name": "Zinmanga",
+      "primaryUrl": "https://www.zinmanga.net/",
+      "domains": [
+        "bato1.com",
+        "harimanga.co.uk",
+        "harimanga.vip",
+        "kunmanga.co.uk",
+        "likemanga.vip",
+        "mangabats.com",
+        "mangakakalot.gg",
+        "manganami.com",
+        "manganato.gg",
+        "manhwaclan.co.uk",
+        "natomanga.com",
+        "natumanga.com",
+        "nelomanga.com",
+        "zazamanga.com",
+        "zinmanga.net"
+      ]
+    },
+    {
+      "id": "fanfox",
+      "name": "Mangafox",
+      "primaryUrl": "https://fanfox.net/",
+      "domains": [
+        "fanfox.net",
+        "m.fanfox.net",
+        "mangafox.la",
+        "mangahere.cc"
+      ]
+    },
+    {
+      "id": "mfreak",
+      "name": "MangaFreak",
+      "primaryUrl": "https://mangafreak.me/",
+      "domains": [
+        "mangafreak.me"
+      ]
+    },
+    {
+      "id": "mangade",
+      "name": "MangaDE",
+      "primaryUrl": "https://mangade.io/",
+      "domains": [
+        "mangade.io"
+      ]
+    },
+    {
+      "id": "komix",
+      "name": "Komix",
+      "primaryUrl": "https://komix.to/",
+      "domains": [
+        "komix.to"
+      ]
+    },
+    {
+      "id": "mangatown",
+      "name": "MangaTown",
+      "primaryUrl": "https://mangatown.com/",
+      "domains": [
+        "mangatown.com"
+      ]
+    },
+    {
+      "id": "mangahome",
+      "name": "MangaHome",
+      "primaryUrl": "https://www.mangahome.com/",
+      "domains": [
+        "mangahome.com"
+      ]
+    },
+    {
+      "id": "reimanga",
+      "name": "ReiManga",
+      "primaryUrl": "https://reimanga.com/",
+      "domains": [
+        "reimanga.com"
+      ]
+    },
+    {
+      "id": "taadd",
+      "name": "NiAdd",
+      "primaryUrl": "https://www.niadd.com/",
+      "domains": [
+        "niadd.com",
+        "ninemanga.com",
+        "taadd.com",
+        "tenmanga.com"
+      ]
+    },
+    {
+      "id": "demonicscans",
+      "name": "Manga Demon",
+      "primaryUrl": "https://demonicscans.org/",
+      "domains": [
+        "demonicscans.org",
+        "yomimanga.com"
+      ]
+    },
+    {
+      "id": "ninekon",
+      "name": "Ninekon",
+      "primaryUrl": "https://app.ninekon.com/",
+      "domains": [
+        "app.ninekon.com"
+      ]
+    },
+    {
+      "id": "manhuaplus",
+      "name": "ManhuaPlus",
+      "primaryUrl": "https://manhuaplus.top/",
+      "domains": [
+        "manhuaplus.com",
+        "manhuaplus.top"
+      ]
+    },
+    {
+      "id": "mangapill",
+      "name": "Mangapill",
+      "primaryUrl": "https://mangapill.com/",
+      "domains": [
+        "mangapill.com",
+        "otakuoasis.online"
+      ]
+    },
+    {
+      "id": "mangakawaii",
+      "name": "Mangakawaii",
+      "primaryUrl": "https://www.mangakawaii.fr/",
+      "domains": [
+        "mangakawaii.fr",
+        "mangakawaii.io"
+      ]
+    },
+    {
+      "id": "oriyami",
+      "name": "OriYami",
+      "primaryUrl": "https://oriyami.com/",
+      "domains": [
+        "oriyami.com"
+      ]
+    },
+    {
+      "id": "mangageko",
+      "name": "mangageko",
+      "primaryUrl": "https://www.mgeko.cc/",
+      "domains": [
+        "mangamob.com",
+        "mgeko.cc"
+      ]
+    },
+    {
+      "id": "linkmanga",
+      "name": "Mangalink",
+      "primaryUrl": "https://linkmanga.com/",
+      "domains": [
+        "linkmanga.com"
+      ]
+    },
+    {
+      "id": "mangadex",
+      "name": "MangaDex",
+      "primaryUrl": "https://mangadex.org/",
+      "domains": [
+        "mangadex.org"
+      ]
+    },
+    {
+      "id": "godacomic",
+      "name": "GodaComic",
+      "primaryUrl": "https://manhuascans.org/",
+      "domains": [
+        "godamh.org",
+        "manhuascans.org"
+      ]
+    },
+    {
+      "id": "jpbookstore",
+      "name": "JP Book Store",
+      "primaryUrl": "https://jpbookstore.com/collections/light-novel",
+      "domains": [
+        "jpbookstore.com"
+      ]
+    },
+    {
+      "id": "kmanga",
+      "name": "K MANGA",
+      "primaryUrl": "https://kmanga.kodansha.com/",
+      "domains": [
+        "kmanga.kodansha.com"
+      ]
+    },
+    {
+      "id": "pixivcomic",
+      "name": "Pixiv Comics",
+      "primaryUrl": "https://comic.pixiv.net/",
+      "domains": [
+        "comic.pixiv.net"
+      ]
+    },
+    {
+      "id": "inkr",
+      "name": "INKR",
+      "primaryUrl": "https://comics.inkr.com/",
+      "domains": [
+        "comics.inkr.com"
+      ]
+    },
+    {
+      "id": "justmanga",
+      "name": "JustManga",
+      "primaryUrl": "https://justmanga.cc/",
+      "domains": [
+        "justmanga.cc",
+        "projectjust.xyz"
+      ]
+    },
+    {
+      "id": "yaoiscan",
+      "name": "Yaoiscan",
+      "primaryUrl": "https://yaoiscan.com/",
+      "domains": [
+        "yaoiscan.com"
+      ]
+    },
+    {
+      "id": "dreammanga",
+      "name": "MangaBay",
+      "primaryUrl": "https://manga-bay.biz/",
+      "domains": [
+        "dream-manga.com",
+        "manga-bay.biz",
+        "manga-bay.org",
+        "novelkin.com"
+      ]
+    },
+    {
+      "id": "manhwanex",
+      "name": "Manhwanex",
+      "primaryUrl": "https://manhwanex.com/",
+      "domains": [
+        "manhwanex.com"
+      ]
+    },
+    {
+      "id": "rawotaku",
+      "name": "RawOtaku",
+      "primaryUrl": "https://rawotaku.com/",
+      "domains": [
+        "jmanga.org",
+        "rawjp.co",
+        "rawotaku.com"
+      ]
+    },
+    {
+      "id": "klto9",
+      "name": "KT9",
+      "primaryUrl": "https://klto9.com/",
+      "domains": [
+        "hachiraw.win",
+        "jestful.net",
+        "klto9.com",
+        "klz9.com",
+        "manga1000.top",
+        "manga1001.xyz",
+        "mn4u.net"
+      ]
+    },
+    {
+      "id": "hachiraw",
+      "name": "Hachiraw",
+      "primaryUrl": "https://hachiraw.win/",
+      "domains": [
+        "hachiraw.win"
+      ]
+    },
+    {
+      "id": "mangaraw4u",
+      "name": "MangaRaw4u",
+      "primaryUrl": "https://mangaraw4u.com/",
+      "domains": [
+        "mangaraw4u.com"
+      ]
+    },
+    {
+      "id": "nicomanga",
+      "name": "Nicomanga",
+      "primaryUrl": "https://nicomanga.com/",
+      "domains": [
+        "mangagun.net",
+        "nicomanga.com",
+        "rawinu.com"
+      ]
+    },
+    {
+      "id": "rawuwu",
+      "name": "Rawdevart",
+      "primaryUrl": "https://rawdevart.art/",
+      "domains": [
+        "rawdevart.art",
+        "rawuwu.com",
+        "rawuwu.net"
+      ]
+    },
+    {
+      "id": "rawsakura",
+      "name": "RawSakura",
+      "primaryUrl": "https://rawsakura.org/",
+      "domains": [
+        "rawsakura.org"
+      ]
+    },
+    {
+      "id": "nihonkuni",
+      "name": "NihonKuni",
+      "primaryUrl": "https://nihonkuni.com/",
+      "domains": [
+        "nihonkuni.com"
+      ]
+    },
+    {
+      "id": "mangaraw",
+      "name": "Raw Manga",
+      "primaryUrl": "https://mangaraw.org/",
+      "domains": [
+        "mangaraw.org"
+      ]
+    },
+    {
+      "id": "rawkuma",
+      "name": "Rawkuma",
+      "primaryUrl": "https://rawkuma.net/",
+      "domains": [
+        "old.rawkuma.net",
+        "rawkuma.net"
+      ]
+    },
+    {
+      "id": "mangarawbest",
+      "name": "漫画 raw",
+      "primaryUrl": "https://mangaraw.best/",
+      "domains": [
+        "klmanga.talk",
+        "mangaraw.best"
+      ]
+    },
+    {
+      "id": "welomaraw",
+      "name": "WeLoMa",
+      "primaryUrl": "https://weloma.art/",
+      "domains": [
+        "weloma.art"
+      ]
+    },
+    {
+      "id": "spoilerplus",
+      "name": "Spoilerplus",
+      "primaryUrl": "https://spoilerplus.tv/",
+      "domains": [
+        "spoilerplus.tv"
+      ]
+    },
+    {
+      "id": "rawlazy",
+      "name": "RawLazy",
+      "primaryUrl": "https://rawlazy.io/",
+      "domains": [
+        "rawlazy.io",
+        "rawlazy.rs"
+      ]
+    },
+    {
+      "id": "raw1001",
+      "name": "raw1001",
+      "primaryUrl": "https://raw1001.net/",
+      "domains": [
+        "mangakoma.net",
+        "raw1001.net"
+      ]
+    },
+    {
+      "id": "baozimhorg",
+      "name": "Baozi Manhua",
+      "primaryUrl": "https://baozimh.org/",
+      "domains": [
+        "baozimh.org",
+        "bzmh.org",
+        "godamh.com",
+        "nav.telltome.net"
+      ]
+    },
+    {
+      "id": "twmanga",
+      "name": "Twmanga",
+      "primaryUrl": "https://www.twbzmg.com/",
+      "domains": [
+        "baozimh.com",
+        "twbzmg.com"
+      ]
+    },
+    {
+      "id": "senmanga",
+      "name": "SenManga",
+      "primaryUrl": "https://raw.senmanga.com/",
+      "domains": [
+        "raw.senmanga.com"
+      ]
+    },
+    {
+      "id": "rawfree",
+      "name": "RawFree",
+      "primaryUrl": "https://rawfree.me/",
+      "domains": [
+        "rawfree.me",
+        "syosetu.ro"
+      ]
+    },
+    {
+      "id": "mangaplaza",
+      "name": "MangaPlaza",
+      "primaryUrl": "https://mangaplaza.com/",
+      "domains": [
+        "mangaplaza.com"
+      ]
+    },
+    {
+      "id": "mangamirai",
+      "name": "Manga Mirai",
+      "primaryUrl": "https://mangamirai.com/",
+      "domains": [
+        "mangamirai.com"
+      ]
+    },
+    {
+      "id": "mangamikan",
+      "name": "MangaMikan",
+      "primaryUrl": "https://mangamikan.com/",
+      "domains": [
+        "mangamikan.com",
+        "readmanhwas.com"
+      ]
+    },
+    {
+      "id": "mangaberri",
+      "name": "MangaBerri",
+      "primaryUrl": "https://mangaberri.com/home.php",
+      "domains": [
+        "berripix.com",
+        "mangaberri.com",
+        "mangalegend.com"
+      ]
+    },
+    {
+      "id": "mangacherri",
+      "name": "MangaCherri",
+      "primaryUrl": "https://mangacherri.com/home.php",
+      "domains": [
+        "mangacherri.com"
+      ]
+    },
+    {
+      "id": "dankemoe",
+      "name": "Danke fürs Lesen",
+      "primaryUrl": "https://danke.moe/",
+      "domains": [
+        "danke.moe"
+      ]
+    },
+    {
+      "id": "hachirumi",
+      "name": "Hachirumi",
+      "primaryUrl": "https://hachirumi.com/",
+      "domains": [
+        "hachirumi.com"
+      ]
+    },
+    {
+      "id": "silentquill",
+      "name": "KDT Scans",
+      "primaryUrl": "https://silentquill.net/",
+      "domains": [
+        "silentquill.net"
+      ]
+    },
+    {
+      "id": "mangasushi",
+      "name": "Mangasushi",
+      "primaryUrl": "https://mangasushi.org/",
+      "domains": [
+        "mangasushi.org"
+      ]
+    },
+    {
+      "id": "manhuabuddy",
+      "name": "ManhuaBuddy",
+      "primaryUrl": "https://manhuabuddy.com/",
+      "domains": [
+        "manhuabuddy.com"
+      ]
+    },
+    {
+      "id": "readmangacc",
+      "name": "ReadManga",
+      "primaryUrl": "https://readmanga.cc/",
+      "domains": [
+        "readmanga.cc"
+      ]
+    },
+    {
+      "id": "lilymanga",
+      "name": "Lilymanga",
+      "primaryUrl": "https://lilymanga.net/",
+      "domains": [
+        "lilymanga.net"
+      ]
+    },
+    {
+      "id": "mangadoom",
+      "name": "MangaDoom",
+      "primaryUrl": "https://manga-doom.com/",
+      "domains": [
+        "manga-doom.com"
+      ]
+    },
+    {
+      "id": "mangareadorg",
+      "name": "MangaRead",
+      "primaryUrl": "https://mangaread.org/",
+      "domains": [
+        "manganow.to",
+        "mangaread.org",
+        "mangaxo.com"
+      ]
+    },
+    {
+      "id": "aquamanga",
+      "name": "Aqua manga",
+      "primaryUrl": "https://aquareader.org/",
+      "domains": [
+        "aquareader.org"
+      ]
+    },
+    {
+      "id": "todaymanga",
+      "name": "Todaymanga",
+      "primaryUrl": "https://todaymanga.com/",
+      "domains": [
+        "todaymanga.com"
+      ]
+    },
+    {
+      "id": "mangahotto",
+      "name": "Manhua Hot",
+      "primaryUrl": "https://manhuahot.com/",
+      "domains": [
+        "danmeinovel.com",
+        "manhuahot.com"
+      ]
+    },
+    {
+      "id": "kagane",
+      "name": "Kagane",
+      "primaryUrl": "https://kagane.moe/",
+      "domains": [
+        "kagane.cx",
+        "kagane.moe",
+        "kagane.net",
+        "kagane.org",
+        "kagane.si",
+        "kagane.to"
+      ]
+    },
+    {
+      "id": "webtoonclub",
+      "name": "WebtoonClub",
+      "primaryUrl": "https://webtoonclub.com/",
+      "domains": [
+        "webtoonclub.com"
+      ]
+    },
+    {
+      "id": "baetoon",
+      "name": "BaeToon",
+      "primaryUrl": "https://baetoon.com/",
+      "domains": [
+        "baetoon.com",
+        "manhwah.com"
+      ]
+    },
+    {
+      "id": "webtoon",
+      "name": "Webtoons",
+      "primaryUrl": "https://webtoons.com/",
+      "domains": [
+        "webtoons.com"
+      ]
+    },
+    {
+      "id": "tapas",
+      "name": "Tapas",
+      "primaryUrl": "https://tapas.io/",
+      "domains": [
+        "tapas.io"
+      ]
+    },
+    {
+      "id": "tappytoon",
+      "name": "Tappytoon",
+      "primaryUrl": "https://www.tappytoon.com/",
+      "domains": [
+        "tappytoon.com"
+      ]
+    },
+    {
+      "id": "toomics",
+      "name": "Toomics",
+      "primaryUrl": "https://toomics.com/",
+      "domains": [
+        "toomics.com",
+        "toomics.in"
+      ]
+    },
+    {
+      "id": "lewdmanhwa",
+      "name": "LewdManhwa",
+      "primaryUrl": "https://lewdmanhwa.com/home",
+      "domains": [
+        "lewdmanhwa.com"
+      ]
+    },
+    {
+      "id": "pornhwareader",
+      "name": "PornhwaDB Reader",
+      "primaryUrl": "https://pornhwareader.com/",
+      "domains": [
+        "pornhwadb.com",
+        "pornhwareader.com"
+      ]
+    },
+    {
+      "id": "hiperdex",
+      "name": "HiperDEX",
+      "primaryUrl": "https://hiperdex.com/",
+      "domains": [
+        "hiperdex.com",
+        "hiperdex.tv"
+      ]
+    },
+    {
+      "id": "madaradex",
+      "name": "MadaraDex",
+      "primaryUrl": "https://madaradex.org/",
+      "domains": [
+        "madaradex.org"
+      ]
+    },
+    {
+      "id": "toonitube",
+      "name": "TooniTube",
+      "primaryUrl": "https://toontop.io/home",
+      "domains": [
+        "beehentai.com",
+        "toonily.me",
+        "toonitube.com",
+        "toontop.io"
+      ]
+    },
+    {
+      "id": "hentai20",
+      "name": "Hentai20.io",
+      "primaryUrl": "https://hentai20.io/",
+      "domains": [
+        "18porncomic.com",
+        "hentai20.io",
+        "hentai3z.cc",
+        "manga18h.com"
+      ]
+    },
+    {
+      "id": "comicland",
+      "name": "ComicLand",
+      "primaryUrl": "https://comicland.org/",
+      "domains": [
+        "comicland.org"
+      ]
+    },
+    {
+      "id": "toomicsfree",
+      "name": "HotComics",
+      "primaryUrl": "https://hotcomics.me/",
+      "domains": [
+        "daycomics.me",
+        "hotcomics.io",
+        "hotcomics.me",
+        "toonhey.com"
+      ]
+    },
+    {
+      "id": "pornhwaz",
+      "name": "Pornhwaz",
+      "primaryUrl": "https://www.pornhwaz.com/",
+      "domains": [
+        "pornhwaz.com"
+      ]
+    },
+    {
+      "id": "toon18x",
+      "name": "Toon18x",
+      "primaryUrl": "https://toon18x.com/",
+      "domains": [
+        "toon18x.com"
+      ]
+    },
+    {
+      "id": "toonverse",
+      "name": "ToonVerse",
+      "primaryUrl": "https://toonverse.net/",
+      "domains": [
+        "toonverse.net"
+      ]
+    },
+    {
+      "id": "manhwatop",
+      "name": "Manhwatop",
+      "primaryUrl": "https://manhwatop.com/",
+      "domains": [
+        "manhwatop.com"
+      ]
+    },
+    {
+      "id": "toonily",
+      "name": "Toonily",
+      "primaryUrl": "https://toonily.com/",
+      "domains": [
+        "toonily.com"
+      ]
+    },
+    {
+      "id": "kuramanga",
+      "name": "KuraManga",
+      "primaryUrl": "https://kuramanga.com/",
+      "domains": [
+        "kurahentai.com",
+        "kuramanga.com"
+      ]
+    },
+    {
+      "id": "lunaranimemanga",
+      "name": "Lunar - Manga",
+      "primaryUrl": "https://lunarx.to/manga",
+      "domains": [
+        "lunarx.to"
+      ]
+    },
+    {
+      "id": "henthub",
+      "name": "HentHub",
+      "primaryUrl": "https://henthub.org/",
+      "domains": [
+        "henthub.org"
+      ]
+    },
+    {
+      "id": "projectsuki",
+      "name": "Projectsuki",
+      "primaryUrl": "https://projectsuki.com/",
+      "domains": [
+        "projectsuki.com"
+      ]
+    },
+    {
+      "id": "topmanhua",
+      "name": "TopManhua",
+      "primaryUrl": "https://manhuatop.org/",
+      "domains": [
+        "manhuatop.org"
+      ]
+    },
+    {
+      "id": "cocomic",
+      "name": "Cocomic",
+      "primaryUrl": "https://cocomic.co/",
+      "domains": [
+        "cocomic.co"
+      ]
+    },
+    {
+      "id": "mangagg",
+      "name": "MangaGG",
+      "primaryUrl": "https://mangagg.com/",
+      "domains": [
+        "freemangatop.com",
+        "mangagg.com",
+        "manhuamanhwa.com"
+      ]
+    },
+    {
+      "id": "mangazin",
+      "name": "Mangazin",
+      "primaryUrl": "https://mangazin.org/",
+      "domains": [
+        "mangazin.org"
+      ]
+    },
+    {
+      "id": "lezhin",
+      "name": "Lehzin",
+      "primaryUrl": "https://www.lezhinus.com/",
+      "domains": [
+        "lezhin.com",
+        "lezhinus.com"
+      ]
+    },
+    {
+      "id": "manta",
+      "name": "Manta",
+      "primaryUrl": "https://manta.net/",
+      "domains": [
+        "manta.net"
+      ]
+    },
+    {
+      "id": "qtoonorg",
+      "name": "qtoon.org",
+      "primaryUrl": "https://qtoon.org/",
+      "domains": [
+        "kaliscans.org",
+        "mangabuddy.space",
+        "mangatoto.online",
+        "mgjinx.vip",
+        "qtoon.org",
+        "storage.zonatmo.org",
+        "vymanga.site"
+      ]
+    },
+    {
+      "id": "manga18fx",
+      "name": "Manga18fx",
+      "primaryUrl": "https://manga18fx.com/",
+      "domains": [
+        "manga18fx.com"
+      ]
+    },
+    {
+      "id": "mangadistrict",
+      "name": "Manga District",
+      "primaryUrl": "https://mangadistrict.com/",
+      "domains": [
+        "mangadistrict.com"
+      ]
+    },
+    {
+      "id": "webtoonxyz",
+      "name": "webtoon.xyz",
+      "primaryUrl": "https://www.webtoon.xyz/",
+      "domains": [
+        "webtoon.xyz"
+      ]
+    },
+    {
+      "id": "nicelink22",
+      "name": "nicelink (wolftoon)",
+      "primaryUrl": "https://a15c.com/",
+      "domains": [
+        "a15c.com",
+        "acloud15.com",
+        "fxfx275.com",
+        "imgcloud5.net",
+        "wfwf353.com",
+        "wfwf999.com",
+        "wtwt280.com",
+        "xn--ph1bph0az41x.com"
+      ]
+    },
+    {
+      "id": "goodtoon",
+      "name": "GoodToon",
+      "primaryUrl": "https://goodtoon1.top/",
+      "domains": [
+        "goodtoon008.com",
+        "goodtoon1.top"
+      ]
+    },
+    {
+      "id": "toonkor",
+      "name": "ToonKor",
+      "primaryUrl": "https://xn--yq5bv6mzmcca.org/",
+      "domains": [
+        "001.toonkor.net",
+        "korsite.net",
+        "toonkor.site",
+        "xn--yq5bv6mzmcca.org"
+      ]
+    },
+    {
+      "id": "blacktoon",
+      "name": "Blacktoon",
+      "primaryUrl": "https://blacktoon.cc/",
+      "domains": [
+        "blacktoon.cc",
+        "blacktoon.fans",
+        "blacktoon426.com",
+        "blacktoongo.com",
+        "xn--ij2bx6jk1s.co"
+      ]
+    },
+    {
+      "id": "toonflix",
+      "name": "TOONFLIX (ntk01)",
+      "primaryUrl": "https://newtoki1.org/",
+      "domains": [
+        "marumaru100.com",
+        "newtoki1.org",
+        "ntk01.com",
+        "sbxh9.com",
+        "toki35.com",
+        "toonflix.app",
+        "xn--h10b90bby9a7jkc4f.com"
+      ]
+    },
+    {
+      "id": "pandatoons",
+      "name": "PandaToons",
+      "primaryUrl": "https://pandatoons.com/",
+      "domains": [
+        "pandatoons.com"
+      ]
+    },
+    {
+      "id": "jjaptoon",
+      "name": "jjaptoon",
+      "primaryUrl": "https://jjaptoon008.com/",
+      "domains": [
+        "jjaptoon008.com",
+        "xn--kd6b44m.live"
+      ]
+    },
+    {
+      "id": "funbe512",
+      "name": "Funbe",
+      "primaryUrl": "https://funbe.site/",
+      "domains": [
+        "001.funbe.org",
+        "b5.blacktoon.black",
+        "funbe-juso.com",
+        "funbe.site",
+        "n5.newtoki.top"
+      ]
+    },
+    {
+      "id": "xtoon2",
+      "name": "Xtoon",
+      "primaryUrl": "https://newxtoon3.com/",
+      "domains": [
+        "newxtoon3.com",
+        "xn--vg1b002axlc8ts.com"
+      ]
+    },
+    {
+      "id": "manhwatoonme",
+      "name": "Manhwatoon",
+      "primaryUrl": "https://manhwatoon.me/",
+      "domains": [
+        "doujinhq.club",
+        "manhwatoon.app",
+        "manhwatoon.me",
+        "manhwatoons.com"
+      ]
+    },
+    {
+      "id": "manhuarmmtl",
+      "name": "ManhuaRMTL",
+      "primaryUrl": "https://manhuarmtl.com/",
+      "domains": [
+        "ch.manhuarmtl.com",
+        "jp.manhuarmtl.com",
+        "kr.manhuarmtl.com",
+        "manhuarmtl.com",
+        "mtlmanga.org"
+      ]
+    },
+    {
+      "id": "kingofshojo",
+      "name": "Kingofshojo",
+      "primaryUrl": "https://kingofshojo.com/",
+      "domains": [
+        "kingofshojo.com"
+      ]
+    },
+    {
+      "id": "omegascans",
+      "name": "OmegaScans",
+      "primaryUrl": "https://omegascans.org/",
+      "domains": [
+        "omegascans.org"
+      ]
+    },
+    {
+      "id": "toongod",
+      "name": "Toongod",
+      "primaryUrl": "https://www.toongod.org/home/",
+      "domains": [
+        "toongod.org"
+      ]
+    },
+    {
+      "id": "webtooni",
+      "name": "Webtooni",
+      "primaryUrl": "https://webtooni.net/",
+      "domains": [
+        "heytoon.net",
+        "webtooni.net"
+      ]
+    },
+    {
+      "id": "manhwabuddy",
+      "name": "ManhwaBuddy",
+      "primaryUrl": "https://manhwabuddy.com/",
+      "domains": [
+        "manhwabuddy.com"
+      ]
+    },
+    {
+      "id": "xtoonhub",
+      "name": "XToonhub",
+      "primaryUrl": "https://xtoonhub1.com/",
+      "domains": [
+        "xtoonhub1.com"
+      ]
+    },
+    {
+      "id": "manga18",
+      "name": "Manga18.club",
+      "primaryUrl": "https://manga18.club/",
+      "domains": [
+        "manga18.club"
+      ]
+    },
+    {
+      "id": "manhwa18",
+      "name": "Manhwa18",
+      "primaryUrl": "https://manhwa18.com/",
+      "domains": [
+        "manhwa18.cc",
+        "manhwa18.com"
+      ]
+    },
+    {
+      "id": "mangatx",
+      "name": "MangaTx",
+      "primaryUrl": "https://mangatx.cc/",
+      "domains": [
+        "mangatx.cc"
+      ]
+    },
+    {
+      "id": "manhwaden",
+      "name": "manhwaDen",
+      "primaryUrl": "https://manhwaden.com/",
+      "domains": [
+        "manhwaden.com"
+      ]
+    },
+    {
+      "id": "manhwasusu",
+      "name": "ManhwaSusu",
+      "primaryUrl": "https://manhwasusu.com/",
+      "domains": [
+        "manhwasusu.com"
+      ]
+    },
+    {
+      "id": "theblank",
+      "name": "The Blank",
+      "primaryUrl": "https://theblank.net/",
+      "domains": [
+        "theblank.net"
+      ]
+    },
+    {
+      "id": "luacomic",
+      "name": "Lua Comic",
+      "primaryUrl": "https://luacomic.org/",
+      "domains": [
+        "luacomic.org"
+      ]
+    },
+    {
+      "id": "asuragg",
+      "name": "Asura Scans",
+      "primaryUrl": "https://asurascans.com/",
+      "domains": [
+        "asurascans.com",
+        "beta.asurascans.com",
+        "toraka.com"
+      ]
+    },
+    {
+      "id": "flamescans",
+      "name": "Flame Comics",
+      "primaryUrl": "https://flamecomics.xyz/",
+      "domains": [
+        "flamecomics.xyz"
+      ]
+    },
+    {
+      "id": "hivescans",
+      "name": "Hive Scans",
+      "primaryUrl": "https://hivescans.com/",
+      "domains": [
+        "hivescans.com"
+      ]
+    },
+    {
+      "id": "templescan",
+      "name": "TempleScan",
+      "primaryUrl": "https://templescan.net/",
+      "domains": [
+        "templescan.net"
+      ]
+    },
+    {
+      "id": "rokaricomics",
+      "name": "rokari comics",
+      "primaryUrl": "https://rokaricomics.com/",
+      "domains": [
+        "rokaricomics.com"
+      ]
+    },
+    {
+      "id": "divascans",
+      "name": "Diva Scans",
+      "primaryUrl": "https://divascans.com/",
+      "domains": [
+        "divascans.com"
+      ]
+    },
+    {
+      "id": "nyxscans",
+      "name": "Nyx Scans",
+      "primaryUrl": "https://nyxscans.com/",
+      "domains": [
+        "nyxscans.com"
+      ]
+    },
+    {
+      "id": "freemanhwanet",
+      "name": "FreeManhwa",
+      "primaryUrl": "https://freemanhwa.net/",
+      "domains": [
+        "freemanhwa.net"
+      ]
+    },
+    {
+      "id": "ravenscans",
+      "name": "Raven Scans",
+      "primaryUrl": "https://ravenscans.org/",
+      "domains": [
+        "mangahot.org",
+        "manhwahub.to",
+        "ravenscans.org",
+        "webtoonscan.org"
+      ]
+    },
+    {
+      "id": "manhwaepisodes",
+      "name": "Hentara",
+      "primaryUrl": "https://hentara.com/",
+      "domains": [
+        "hentara.com",
+        "kairomanhwa.com",
+        "manhwaepisodes.com"
+      ]
+    },
+    {
+      "id": "manhwato",
+      "name": "Manhwato",
+      "primaryUrl": "https://manhwato.com/",
+      "domains": [
+        "manhwalike.com",
+        "manhwato.com"
+      ]
+    },
+    {
+      "id": "omanga",
+      "name": "Fropi",
+      "primaryUrl": "https://fropi.net/",
+      "domains": [
+        "fropi.net",
+        "omanga.to"
+      ]
+    },
+    {
+      "id": "manhuaus",
+      "name": "Manhuaus",
+      "primaryUrl": "https://manhuaus.club/",
+      "domains": [
+        "manhuaus.club"
+      ]
+    },
+    {
+      "id": "mangack",
+      "name": "mangack",
+      "primaryUrl": "https://mangack.com/home/",
+      "domains": [
+        "mangack.com"
+      ]
+    },
+    {
+      "id": "mangaforfree",
+      "name": "Mangaforfree",
+      "primaryUrl": "https://mangaforfree.com/",
+      "domains": [
+        "mangaforfree.com"
       ]
     }
   ]

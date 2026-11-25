@@ -90,12 +90,27 @@ One rule for every length, from 2-minute shorts to 2-hour movies:
 
 If MyAnimeList can't be reached, the previous fixed rules are used as a fallback.
 
+**Rewatching a Completed show** leaves MAL untouched by default. With **Preferences → Track Rewatches & Rereads** on, the first episode (not the last) turns on MAL's *Rewatching* flag. Reaching the last episode while rewatching adds 1 to *times rewatched* and turns the flag off. Your episode count stays at the full total throughout. Watching only the finale doesn't count as a rewatch. Manga works the same way with *Rereading* / *times reread*.
+
+## 📖 When a Manga Chapter Counts as Read
+
+Manga, manhwa and manhua readers from EverythingMoe's `manga` and `manhwa` categories are tracked by chapter (full edition; in the store edition, on sites you enable).
+
+1. **Which chapter?** From the URL (`/chapter-12`, `/ch-12.5`, `/c12`, `?chapter=12`) or the page title / heading (`One Piece Chapter 1100`). The title comes from the page title, the heading or, as a last resort, the URL slug.
+2. **Reached the end:** scrolling to the end of the chapter's pages after at least 20 seconds of active reading (idle tabs don't count).
+3. **Moved on:** going from chapter N to N+1 (or N.5) of the same manga after at least 20 seconds on N counts N. This also covers page-by-page readers. Jumping ahead (13 → 20) does not.
+4. **MyAnimeList rules:** decimal chapters count as the whole chapter before them (10.5 → 10), progress never moves backwards, chapters past MAL's chapter count are refused, and the status becomes Reading / Completed like Watching / Completed for anime. On a tie, a manga beats a light novel with the same title.
+5. **Wrong match?** The popup shows which MAL entry was matched. **Wrong match?** lets you paste the correct MAL link; that title then always uses it (works for anime too).
+
+Turn it off with **Preferences → Track Manga**.
+
 ## 🎯 How Detection Works
 
 - The detector only activates on **supported streaming domains** (the Cloudflare list, with a bundled `cloudflare-worker/sites.json` fallback).
 - Player iframes on any embed domain report progress only when their tab is a supported site, relayed through the extension so pages can't fake it.
 - Videos shorter than 2 minutes (ads, previews) never trigger a sync.
-- A title is only synced if a MyAnimeList result is a confident fuzzy match; otherwise nothing is written. Use **Preferences → Wrong Anime Matched? → Reset** to clear saved matches.
+- A title is only synced if a MyAnimeList result is a confident fuzzy match; otherwise nothing is written. Use **Preferences → Wrong Title Matched? → Reset** to clear saved automatic matches (matches you fixed by hand are kept).
+- The full edition reads EverythingMoe's list itself every 12 hours, so new sites and mirrors are picked up and retired sites dropped without a new release. A list that looks broken (too small, or shrinking by more than 40%) is ignored and the current list is kept.
 
 ---
 

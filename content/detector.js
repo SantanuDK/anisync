@@ -312,6 +312,11 @@
       if (Array.isArray(changes.dynamic_site_rules?.newValue)) {
         customRules = changes.dynamic_site_rules.newValue;
       }
+      // The user fixed the match in the popup: plan again with the new MAL entry
+      if (changes.match_overrides) {
+        resetPlan();
+        if (lastProgress) handleProgress(lastProgress);
+      }
     });
 
     function refreshMeta() {
@@ -400,6 +405,7 @@
             animeTitle: meta.title,
             episodeNumber: episode,
             malId: meta.malId,
+            malTitle: ready && plan.eligible ? plan.malTitle : null,
             percentage,
             currentTime,
             duration,
@@ -537,6 +543,364 @@
     };
   }
 
+  // ---------- Manga reader mode ----------
+  //
+  // On manga / manhwa readers there is no video. The chapter number comes from the URL
+  // or the page title, the title from the page title / heading / URL slug. A chapter
+  // counts as read when you scroll to the end of its pages after reading for a while;
+  // moving on to the next chapter is handled by the background ("next chapter" rule),
+  // which also covers page-by-page readers that have no scrollable end.
+
+  // At least this much active reading before a chapter can count
+  const MIN_READ_SECONDS = 20;
+  // No scroll / key / touch for this long = not reading (tab left open)
+  const IDLE_AFTER_MS = 60 * 1000;
+  const READING_STATUS_MS = 5000;
+
+  // "/chapter-12", "/chapter/12", "/ch-12.5", "/chap_3", "?chapter=12"
+  const CH_URL_RE = /(?:^|[\/\-_.?&=])(?:chapter|chap|ch)[-_\/=.]?(\d{1,4})(?:[.](\d{1,2})|-(\d{1,2})(?=$|[\/?#]))?(?=$|[\/\-_.?&#])/i;
+  // "/c12" (short chapter paths used by some readers)
+  const CH_SHORT_URL_RE = /\/c(\d{1,4})(?:\.(\d{1,2}))?(?=$|[\/?#])/i;
+  // "Chapter 12", "Ch. 12.5", "Chap 3", "Vol.2 Ch.10"
+  const CH_TEXT_RE = /\b(?:chapter|chap\.?|ch\.?)\s*#?\s*(\d{1,4})(?:\.(\d{1,2}))?\b/i;
+  // Webtoon / manhwa readers often say "Episode 129" instead of "Chapter 129". Only used
+  // when the page clearly shows comic pages and no video player (see looksLikeComicPage)
+  const EP_WORD_TEXT_RE = /\b(?:episode|ep\.?)\s*#?\s*(\d{1,4})(?:\.(\d{1,2}))?\b/i;
+  const EP_WORD_URL_RE = /(?:^|[\/\-_.?&=])(?:episode|ep)[-_\/=.]?(\d{1,4})(?=$|[\/\-_.?&#])/i;
+  // "[#004] Title | MANGA Plus" (same comic-page-only rule as "Episode N")
+  const HASH_TEXT_RE = /(?:^|[\s\[(])\[?#(\d{1,4})(?:\.(\d{1,2}))?\]?(?=[\s)\]|:\-–]|$)/;
+  // Separators between title, chapter and site name in page titles
+  const TITLE_SEP_RE = /\s+[-–|•»·]\s+|\s*[|•»·]\s*/;
+
+  // Words around titles that are about the site, not the manga
+  const MANGA_NOISE_RE = /\b(?:read(?:ing)?|online|free|english|eng|raw|scans?|manga|manhwa|manhua|webtoon|comics?)\b/gi;
+  const SLUG_STOP_WORDS = new Set(['read', 'manga', 'manhwa', 'manhua', 'comic', 'comics', 'series', 'title', 'webtoon', 'chapter', 'chapters', 'reader', 'viewer', 'en', 'v', 'g', 'r']);
+
+  function toChapter(intPart, fracPart) {
+    const n = parseInt(intPart, 10);
+    if (!(n >= 0 && n <= 5000)) return null;
+    return fracPart ? Number(`${n}.${fracPart}`) : n;
+  }
+
+  function chapterFromUrl() {
+    const path = decodeURIComponent(window.location.pathname);
+    const m = path.match(CH_URL_RE) || window.location.search.match(CH_URL_RE);
+    if (m) return toChapter(m[1], m[2] || m[3]);
+    const s = path.match(CH_SHORT_URL_RE);
+    if (s) return toChapter(s[1], s[2]);
+    return null;
+  }
+
+  function cleanMangaTitle(str) {
+    return (str || '')
+      .replace(/\b(?:vol(?:ume)?\.?\s*\d+)\b/gi, ' ')
+      .replace(MANGA_NOISE_RE, ' ')
+      .replace(/[\[(【][^\])】]*[\])】]/g, ' ') // "(Official)", "[Scanlator]"
+      .replace(/\s+/g, ' ')
+      .replace(/^[\s\-–|:#,.·•]+|[\s\-–|:#,.·•]+$/g, '')
+      .trim();
+  }
+
+  function looksLikeSiteName(segment) {
+    const s = segment.toLowerCase().replace(/[^a-z0-9]/g, '');
+    if (!s) return true;
+    const labels = window.location.hostname.toLowerCase().replace(/^www\./, '').split('.');
+    // "mangaplus.shueisha.co.jp" -> "shueisha", not "co"
+    if (labels.length > 2 && /^(?:co|com|net|org|ne|or|ac|go)$/.test(labels[labels.length - 2])) labels.pop();
+    const siteBase = (labels.length > 1 ? labels[labels.length - 2] : labels[0]).replace(/[^a-z0-9]/g, '');
+    return (siteBase.length > 2 && (s.includes(siteBase) || siteBase.includes(s))) ||
+      /^(?:read)?(?:manga|manhwa|manhua|webtoons?|comics?|scans?)?(?:online|reader|free|english)?$/.test(s) ||
+      /^page\d+$/.test(s);
+  }
+
+  // "One Piece Chapter 1100 - MangaSite"        -> One Piece
+  // "Chapter 1100: The Dawn | One Piece | Site"  -> One Piece
+  // "MangaSite - Read One Piece Chapter 1100"    -> One Piece
+  function parseMangaText(text, allowEpisode = false) {
+    if (!text) return { title: null, chapter: null };
+    const m = text.match(CH_TEXT_RE) ||
+      (allowEpisode ? (text.match(EP_WORD_TEXT_RE) || text.match(HASH_TEXT_RE)) : null);
+    if (!m) return { title: null, chapter: null };
+    const chapter = toChapter(m[1], m[2]);
+
+    // Real title candidates: cleaned, without the site name, page numbers ("1 | ...")
+    // or volume labels ("Vol. 1"), which clean down to nothing or a bare number
+    const segments = (str) => str.split(TITLE_SEP_RE)
+      .map(x => x.trim())
+      .filter(x => x && !looksLikeSiteName(x))
+      .map(cleanMangaTitle)
+      .filter(x => x.length > 1 && !/^\d+$/.test(x));
+    // Text before "Chapter N": the title is its last real segment
+    const before = segments(text.slice(0, m.index));
+    let title = before.length ? before[before.length - 1] : '';
+    if (!title) {
+      // Title after the chapter: skip the chapter's own name (": The Dawn") and the site
+      const after = segments(text.slice(m.index + m[0].length).replace(/^\s*:[^-–|•»·]*/, ''));
+      title = after.length ? after[0] : '';
+    }
+    return { title: title.length > 1 ? title : null, chapter };
+  }
+
+  // "/manga/one-piece/chapter-1100" -> "one piece" (last resort)
+  function titleFromSlug() {
+    const parts = decodeURIComponent(window.location.pathname).split('/').filter(Boolean);
+    const chIdx = parts.findIndex(p => CH_URL_RE.test('/' + p) || CH_SHORT_URL_RE.test('/' + p));
+    const candidates = (chIdx > 0 ? parts.slice(0, chIdx) : parts).reverse();
+    for (const raw of candidates) {
+      const slug = raw
+        .replace(/\.html?$/i, '')
+        .replace(/(?:[-_.](?:chapter|chap|ch)[-_.]?\d.*)$/i, '')
+        .replace(/[-_.][a-z0-9]{0,4}\d[a-z0-9]*$/i, ''); // trailing ids like "-x1y2" / ".12345"
+      const words = slug.split(/[-_+.]+/).filter(Boolean);
+      if (words.length === 0 || words.every(w => SLUG_STOP_WORDS.has(w.toLowerCase()) || /^\d+$/.test(w))) continue;
+      if (/^[0-9a-f-]{16,}$/i.test(raw)) continue; // UUIDs
+      const title = words.join(' ');
+      if (title.length > 1) return title;
+    }
+    return null;
+  }
+
+  // Comic pages on screen and no video player: "Episode N" then means a chapter
+  function looksLikeComicPage() {
+    if (document.querySelector('video')) return false;
+    const player = [...document.querySelectorAll('iframe')].some(f => {
+      const r = f.getBoundingClientRect();
+      return r.width >= 400 && r.height >= 225;
+    });
+    return !player && readerPages().length >= 3;
+  }
+
+  function extractMangaMetadata() {
+    // The chapter number the page shows wins over the URL: many readers put internal
+    // IDs in the URL (/chapter/9583733), and a short ID would look like a chapter
+    const urlChapter = chapterFromUrl();
+    let chapter = null;
+    let title = null;
+
+    const ogTitle = document.querySelector('meta[property="og:title"]')?.getAttribute('content') || '';
+    const texts = [mainHeading(), document.title, ogTitle];
+    const scan = (allowEpisode) => {
+      for (const text of texts) {
+        const parsed = parseMangaText(text, allowEpisode);
+        if (parsed.chapter == null) continue;
+        if (chapter == null) chapter = parsed.chapter;
+        if (!title && parsed.title) title = parsed.title;
+        if (title && chapter != null) break;
+      }
+    };
+    scan(false);
+    if (chapter == null && urlChapter == null && looksLikeComicPage()) {
+      scan(true);
+      if (chapter == null) {
+        const m = decodeURIComponent(window.location.pathname).match(EP_WORD_URL_RE);
+        if (m) chapter = toChapter(m[1]);
+      }
+    }
+    if (chapter == null) chapter = urlChapter;
+    if (chapter == null) return null; // not a chapter page (home, series page, search...)
+    if (!title) title = titleFromSlug();
+    if (!title) return null;
+
+    // A link to the series' MyAnimeList page is exact (only if every link agrees)
+    let malId = null;
+    const ids = new Set([...document.querySelectorAll('a[href*="myanimelist.net/manga/"]')]
+      .map(a => (a.getAttribute('href') || '').match(/myanimelist\.net\/manga\/(\d{1,7})/)?.[1])
+      .filter(Boolean));
+    if (ids.size === 1) malId = Number([...ids][0]);
+
+    return { title, chapter, malId };
+  }
+
+  // The chapter's pages: big images / canvases in the reader (elements, in page order)
+  function readerPageElements() {
+    const minWidth = Math.min(300, window.innerWidth * 0.4);
+    return [...document.querySelectorAll('img, canvas')].filter(el => {
+      const r = el.getBoundingClientRect();
+      return r.width >= minWidth && r.height >= 150;
+    });
+  }
+
+  function readerPages() {
+    return readerPageElements().map(el => el.getBoundingClientRect());
+  }
+
+  function commonAncestor(a, b) {
+    const seen = new Set();
+    for (let n = a; n; n = n.parentElement) seen.add(n);
+    for (let n = b; n; n = n.parentElement) if (seen.has(n)) return n;
+    return null;
+  }
+
+  // How far through the chapter the bottom of the screen is (0-100). Measured against
+  // the element holding all the pages: readers that load pages while you scroll keep
+  // room for the pages that haven't loaded yet, so this stays accurate (measuring only
+  // the loaded images said 94% at the middle of a chapter).
+  function readingProgress() {
+    const els = readerPageElements();
+    const viewBottom = window.innerHeight;
+    if (els.length >= 2) {
+      const container = commonAncestor(els[0], els[els.length - 1]);
+      let top, bottom;
+      if (container && container !== document.body && container !== document.documentElement) {
+        const r = container.getBoundingClientRect();
+        top = r.top;
+        bottom = r.bottom;
+      } else {
+        const rects = els.map(el => el.getBoundingClientRect());
+        top = Math.min(...rects.map(r => r.top));
+        bottom = Math.max(...rects.map(r => r.bottom));
+      }
+      const span = bottom - top;
+      if (span > 0) return { pages: els.length, pct: Math.max(0, Math.min(100, ((viewBottom - top) / span) * 100)) };
+    }
+    const doc = document.documentElement;
+    const max = Math.max(1, doc.scrollHeight - window.innerHeight);
+    return { pages: els.length, pct: Math.max(0, Math.min(100, (window.scrollY / max) * 100)) };
+  }
+
+  function startMangaReader() {
+    let meta = null;
+    let plan = null;
+    let planState = 'none'; // none | pending | ready | unavailable
+    let syncState = 'idle'; // idle | pending | done
+    let retryAt = 0;
+    let activeSeconds = 0;
+    let maxProgress = 0;
+    let scrolled = 0;
+    // Last scroll position per scrolling element: some readers scroll the page, others
+    // a box inside it (e.g. <main class="rpage-main">), and the page then never moves
+    let scrollPositions = new WeakMap();
+    let lastActivity = Date.now();
+    let lastStatusSent = 0;
+
+    const markActive = () => { lastActivity = Date.now(); };
+    for (const ev of ['keydown', 'pointerdown', 'wheel', 'touchmove', 'mousemove']) {
+      window.addEventListener(ev, markActive, { passive: true, capture: true });
+    }
+    window.addEventListener('scroll', (event) => {
+      markActive();
+      const el = event.target instanceof Element ? event.target : document.scrollingElement;
+      if (!el) return;
+      const y = el.scrollTop;
+      const prev = scrollPositions.has(el) ? scrollPositions.get(el) : y;
+      scrolled += Math.abs(y - prev);
+      scrollPositions.set(el, y);
+    }, { passive: true, capture: true });
+
+    function requestPlan() {
+      const forMeta = meta;
+      planState = 'pending';
+      plan = null;
+      chrome.runtime.sendMessage({
+        type: 'GET_MANGA_PLAN',
+        data: { mangaTitle: forMeta.title, chapterNumber: forMeta.chapter, malId: forMeta.malId }
+      }).then((res) => {
+        if (meta !== forMeta) return;
+        if (res?.success && res.plan?.available) {
+          plan = res.plan;
+          planState = 'ready';
+          if (!plan.eligible) console.log(`[AniSync] Not syncing "${forMeta.title}" chapter ${forMeta.chapter}: ${plan.reason}`);
+        } else {
+          planState = 'unavailable';
+        }
+        sendStatus(true);
+      }).catch(() => {
+        if (meta === forMeta) planState = 'unavailable';
+      });
+    }
+
+    function refresh() {
+      const next = extractMangaMetadata();
+      if (!next) {
+        meta = null;
+        return;
+      }
+      if (!meta || meta.title !== next.title || meta.chapter !== next.chapter) {
+        meta = next;
+        syncState = 'idle';
+        retryAt = 0;
+        activeSeconds = 0;
+        maxProgress = 0;
+        scrolled = 0;
+        scrollPositions = new WeakMap();
+        console.info(`[AniSync] Reading "${meta.title}" chapter ${meta.chapter}`);
+        requestPlan();
+      }
+    }
+
+    function sendStatus(force = false) {
+      if (!meta) return;
+      const now = Date.now();
+      if (!force && now - lastStatusSent < READING_STATUS_MS) return;
+      lastStatusSent = now;
+      chrome.runtime.sendMessage({
+        type: 'UPDATE_READING_STATUS',
+        data: {
+          mangaTitle: meta.title,
+          chapterNumber: meta.chapter,
+          malId: plan?.malId || meta.malId,
+          malTitle: plan?.malTitle || null,
+          progress: maxProgress,
+          activeSeconds,
+          eligible: planState === 'ready' && !!plan.eligible,
+          site: window.location.hostname
+        }
+      }).catch(() => {});
+    }
+
+    function maybeSync(progress) {
+      if (syncState !== 'idle' || Date.now() < retryAt) return;
+      if (planState !== 'ready' || !plan.eligible) return;
+      // Reached the end of a scrolling chapter after actually reading it
+      const reachedEnd = progress.pages >= 3 && progress.pct >= 95;
+      if (!reachedEnd || activeSeconds < MIN_READ_SECONDS || scrolled < window.innerHeight) return;
+
+      syncState = 'pending';
+      const syncedMeta = meta;
+      console.log(`[AniSync] Syncing "${meta.title}" chapter ${meta.chapter} (reached the end)...`);
+      chrome.runtime.sendMessage({
+        type: 'SYNC_CHAPTER',
+        data: { mangaTitle: meta.title, chapterNumber: meta.chapter, malId: plan.malId || meta.malId }
+      }).then((res) => {
+        if (meta !== syncedMeta) return;
+        if (res?.success) {
+          syncState = 'done';
+          console.log('[AniSync] Synced with MyAnimeList:', res.message || res.manga?.title);
+        } else {
+          syncState = 'idle';
+          retryAt = Date.now() + SYNC_RETRY_MS;
+          console.warn('[AniSync] Chapter sync failed:', res?.error);
+        }
+      }).catch((err) => {
+        if (meta !== syncedMeta) return;
+        syncState = 'idle';
+        retryAt = Date.now() + SYNC_RETRY_MS;
+        console.warn('[AniSync] Chapter sync error:', err?.message);
+      });
+    }
+
+    // Once a second: count active reading time, track progress, maybe sync
+    setInterval(() => {
+      refresh();
+      if (!meta) return;
+      const visible = document.visibilityState === 'visible';
+      if (visible && Date.now() - lastActivity < IDLE_AFTER_MS) activeSeconds++;
+      const progress = readingProgress();
+      maxProgress = Math.max(maxProgress, Math.round(progress.pct));
+      sendStatus();
+      maybeSync(progress);
+    }, 1000);
+
+    // A hand-made match or the manga setting changed: ask for a new plan
+    chrome.storage.onChanged.addListener((changes, area) => {
+      if (area !== 'local' || !meta) return;
+      if (changes.match_overrides || changes.settings) requestPlan();
+    });
+
+    refresh();
+    console.info(`[AniSync] Manga tracking active on ${window.location.hostname}`);
+  }
+
   // ---------- Boot ----------
 
   if (isTopFrame) {
@@ -546,17 +910,19 @@
       : Promise.resolve([]);
 
     Promise.all([
-      chrome.storage.local.get(['supported_domains', 'dynamic_site_rules']),
+      chrome.storage.local.get(['supported_domains', 'supported_manga_domains', 'dynamic_site_rules', 'settings']),
       userSitesPromise
-    ]).then(([{ supported_domains, dynamic_site_rules }, user_sites]) => {
+    ]).then(([{ supported_domains, supported_manga_domains, dynamic_site_rules, settings }, user_sites]) => {
       if (Array.isArray(dynamic_site_rules)) customRules = dynamic_site_rules;
-      const domains = [
-        ...(Array.isArray(supported_domains) ? supported_domains : []),
-        ...(Array.isArray(user_sites) ? user_sites.map(s => s?.domain).filter(Boolean) : [])
-      ];
-      if (isSupportedHost(window.location.hostname, domains)) {
-        startTopFrame();
-      }
+      const host = window.location.hostname;
+      // Sites the user enabled get both modes: each only acts on its own kind of page
+      // (a video for anime, a chapter number for manga)
+      const userDomains = Array.isArray(user_sites) ? user_sites.map(s => s?.domain).filter(Boolean) : [];
+      const animeDomains = [...(Array.isArray(supported_domains) ? supported_domains : []), ...userDomains];
+      const mangaDomains = [...(Array.isArray(supported_manga_domains) ? supported_manga_domains : []), ...userDomains];
+
+      if (isSupportedHost(host, animeDomains)) startTopFrame();
+      if (settings?.trackManga !== false && isSupportedHost(host, mangaDomains)) startMangaReader();
     }).catch(() => {});
   } else {
     chrome.runtime.sendMessage({ type: 'FRAME_HELLO' }).then((res) => {

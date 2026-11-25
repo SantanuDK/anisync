@@ -23,6 +23,11 @@ document.addEventListener('DOMContentLoaded', async () => {
   const playbackPercentage = document.getElementById('playback-percentage');
   const playbackSite = document.getElementById('playback-site');
   const btnForceSync = document.getElementById('btn-force-sync');
+  const matchText = document.getElementById('match-text');
+  const btnFixMatch = document.getElementById('btn-fix-match');
+  const matchForm = document.getElementById('match-form');
+  const matchInput = document.getElementById('match-input');
+  const matchError = document.getElementById('match-error');
 
   const recentList = document.getElementById('recent-list');
 
@@ -34,16 +39,22 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggleNotifications = document.getElementById('toggle-notifications');
   const toggleAutoStatus = document.getElementById('toggle-auto-status');
   const toggleAniSkip = document.getElementById('toggle-aniskip');
+  const toggleManga = document.getElementById('toggle-manga');
+  const toggleRewatch = document.getElementById('toggle-rewatch');
   const btnClearCache = document.getElementById('btn-clear-cache');
 
-  let currentPlaybackData = null;
+  // What the current session card shows: the latest of the anime being watched and
+  // the manga being read. { kind: 'anime'|'manga', title, number, pct, site, malId, malTitle }
+  let currentSession = null;
+  let latestPlayback = null;
+  let latestReading = null;
 
   // Initialize UI state
   async function init() {
     try {
       const res = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
       if (res && res.isLoggedIn) {
-        renderLoggedIn(res.profile, res.currentPlayback, res.recentSyncs, res.settings);
+        renderLoggedIn(res.profile, res.currentPlayback, res.currentReading, res.recentSyncs, res.settings);
       } else {
         renderLoggedOut();
       }
@@ -60,7 +71,7 @@ document.addEventListener('DOMContentLoaded', async () => {
     viewLoggedIn.classList.add('hidden');
   }
 
-  function renderLoggedIn(profile, playback, recentSyncs, settings) {
+  function renderLoggedIn(profile, playback, reading, recentSyncs, settings) {
     statusPill.className = 'status-pill online';
     statusText.textContent = 'Tracking Active';
 
@@ -73,8 +84,10 @@ document.addEventListener('DOMContentLoaded', async () => {
       userAvatar.src = profile.picture || chrome.runtime.getURL('icons/icon48.png');
     }
 
-    // Playback
-    updatePlaybackUI(playback);
+    // Playback / reading
+    latestPlayback = playback;
+    latestReading = reading;
+    updateSessionUI();
 
     // Recent Syncs
     renderRecentList(recentSyncs || []);
@@ -86,28 +99,74 @@ document.addEventListener('DOMContentLoaded', async () => {
       toggleNotifications.checked = settings.notificationsEnabled !== false;
       toggleAutoStatus.checked = settings.autoUpdateStatus !== false;
       toggleAniSkip.checked = settings.useAniSkip !== false;
+      toggleManga.checked = settings.trackManga !== false;
+      toggleRewatch.checked = settings.trackRewatches === true;
     }
   }
 
-  function updatePlaybackUI(playback) {
-    currentPlaybackData = playback;
-    // Consider active if updated within the last 15 minutes
-    const isRecent = playback && playback.updatedAt && (Date.now() - playback.updatedAt < 15 * 60 * 1000);
+  const SESSION_FRESH_MS = 15 * 60 * 1000;
 
-    if (isRecent && playback.animeTitle) {
-      noPlayback.classList.add('hidden');
-      activePlayback.classList.remove('hidden');
+  function toSession(playback, reading) {
+    const fresh = (x) => x && x.updatedAt && Date.now() - x.updatedAt < SESSION_FRESH_MS;
+    const anime = fresh(playback) && playback.animeTitle ? {
+      kind: 'anime',
+      title: playback.animeTitle,
+      number: playback.episodeNumber,
+      pct: playback.percentage || 0,
+      // Share of the episode that actually played (skips excluded)
+      playedPct: playback.duration > 0 ? ((playback.playedSeconds || 0) / playback.duration) * 100 : null,
+      site: playback.site,
+      malId: playback.malId || null,
+      malTitle: playback.malTitle || null,
+      updatedAt: playback.updatedAt
+    } : null;
+    const manga = fresh(reading) && reading.mangaTitle ? {
+      kind: 'manga',
+      title: reading.mangaTitle,
+      number: reading.chapterNumber,
+      pct: reading.maxProgress || reading.progress || 0,
+      site: reading.site,
+      malId: reading.malId || null,
+      malTitle: reading.malTitle || null,
+      updatedAt: reading.updatedAt
+    } : null;
+    if (anime && manga) return anime.updatedAt >= manga.updatedAt ? anime : manga;
+    return anime || manga;
+  }
 
-      playbackTitle.textContent = playback.animeTitle;
-      playbackTitle.title = playback.animeTitle;
-      playbackEp.textContent = `EP ${playback.episodeNumber || '?'}`;
-      const pct = Math.min(100, Math.max(0, playback.percentage || 0));
-      progressBarFill.style.width = `${pct}%`;
-      playbackPercentage.textContent = `${pct}%`;
-      playbackSite.textContent = playback.site || 'Streaming Site';
-    } else {
+  function updateSessionUI() {
+    const session = toSession(latestPlayback, latestReading);
+    const changed = !currentSession || !session ||
+      currentSession.kind !== session.kind || currentSession.title !== session.title;
+    currentSession = session;
+
+    if (!session) {
       noPlayback.classList.remove('hidden');
       activePlayback.classList.add('hidden');
+      return;
+    }
+    noPlayback.classList.add('hidden');
+    activePlayback.classList.remove('hidden');
+
+    playbackTitle.textContent = session.title;
+    playbackTitle.title = session.title;
+    playbackEp.textContent = `${session.kind === 'manga' ? 'CH' : 'EP'} ${session.number ?? '?'}`;
+    const pct = Math.min(100, Math.max(0, Math.round(session.pct)));
+    progressBarFill.style.width = `${pct}%`;
+    const playedPct = session.playedPct != null ? Math.min(100, Math.round(session.playedPct)) : null;
+    playbackPercentage.textContent = session.kind === 'manga'
+      ? `${pct}% read`
+      : `${pct}%${playedPct != null ? ` · watched ${playedPct}%` : ''}`;
+    playbackPercentage.title = session.kind === 'manga' ? '' : 'Position in the video · share that actually played (an episode needs 50% played to count)';
+    playbackSite.textContent = session.site || (session.kind === 'manga' ? 'Manga Site' : 'Streaming Site');
+
+    matchText.textContent = session.malTitle
+      ? `MAL: ${session.malTitle}`
+      : 'Not matched on MyAnimeList yet';
+    matchText.title = matchText.textContent;
+    if (changed) {
+      matchForm.classList.add('hidden');
+      matchError.classList.add('hidden');
     }
   }
 
@@ -119,9 +178,12 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     recentList.innerHTML = '';
     syncs.slice(0, 5).forEach(item => {
+      const isManga = item.kind === 'manga';
       const a = document.createElement('a');
       a.className = 'recent-item';
-      a.href = `https://myanimelist.net/anime/${item.animeId}`;
+      a.href = isManga
+        ? `https://myanimelist.net/manga/${item.mangaId}`
+        : `https://myanimelist.net/anime/${item.animeId}`;
       a.target = '_blank';
       a.rel = 'noopener';
 
@@ -139,7 +201,10 @@ document.addEventListener('DOMContentLoaded', async () => {
 
       const meta = document.createElement('div');
       meta.className = 'recent-meta';
-      meta.textContent = `Episode ${item.episode}${item.totalEpisodes ? ` / ${item.totalEpisodes}` : ''} • ${formatTimeAgo(item.syncedAt)}`;
+      const repeatTag = item.repeat ? (isManga ? ' (reread)' : ' (rewatch)') : '';
+      meta.textContent = isManga
+        ? `Chapter ${item.chapter}${item.totalChapters ? ` / ${item.totalChapters}` : ''}${repeatTag} • ${formatTimeAgo(item.syncedAt)}`
+        : `Episode ${item.episode}${item.totalEpisodes ? ` / ${item.totalEpisodes}` : ''}${repeatTag} • ${formatTimeAgo(item.syncedAt)}`;
 
       info.appendChild(title);
       info.appendChild(meta);
@@ -200,19 +265,22 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Force Sync button
   btnForceSync.addEventListener('click', async () => {
-    if (!currentPlaybackData || !currentPlaybackData.animeTitle) return;
+    const session = currentSession;
+    if (!session) return;
 
     btnForceSync.disabled = true;
     btnForceSync.textContent = 'Syncing...';
 
     try {
-      const res = await chrome.runtime.sendMessage({
-        type: 'SYNC_EPISODE',
-        data: {
-          animeTitle: currentPlaybackData.animeTitle,
-          episodeNumber: currentPlaybackData.episodeNumber
+      const res = await chrome.runtime.sendMessage(session.kind === 'manga'
+        ? {
+          type: 'SYNC_CHAPTER',
+          data: { mangaTitle: session.title, chapterNumber: session.number, malId: session.malId }
         }
-      });
+        : {
+          type: 'SYNC_EPISODE',
+          data: { animeTitle: session.title, episodeNumber: session.number, malId: session.malId }
+        });
 
       if (res && res.success) {
         btnForceSync.textContent = 'Synced ✓';
@@ -224,7 +292,7 @@ document.addEventListener('DOMContentLoaded', async () => {
         const status = await chrome.runtime.sendMessage({ type: 'GET_STATUS' });
         if (status?.recentSyncs) renderRecentList(status.recentSyncs);
       } else {
-        alert(res?.error || 'Failed to sync episode.');
+        alert(res?.error || 'Failed to sync.');
         btnForceSync.disabled = false;
         btnForceSync.textContent = 'Force Sync Now';
       }
@@ -232,6 +300,67 @@ document.addEventListener('DOMContentLoaded', async () => {
       alert(`Error: ${err.message}`);
       btnForceSync.disabled = false;
       btnForceSync.textContent = 'Force Sync Now';
+    }
+  });
+
+  // ---------- "Wrong match?": point this title at the right MAL entry ----------
+
+  btnFixMatch.addEventListener('click', () => {
+    const show = matchForm.classList.contains('hidden');
+    matchForm.classList.toggle('hidden', !show);
+    matchError.classList.add('hidden');
+    if (show) {
+      matchInput.value = '';
+      matchInput.placeholder = `MyAnimeList ${currentSession?.kind === 'manga' ? 'manga' : 'anime'} link or ID`;
+      matchInput.focus();
+    }
+  });
+
+  // Accepts "https://myanimelist.net/manga/2/Berserk", "myanimelist.net/anime/5114" or "5114"
+  function parseMalInput(text) {
+    const str = (text || '').trim();
+    const link = str.match(/myanimelist\.net\/(anime|manga)\/(\d{1,7})/i);
+    if (link) return { kind: link[1].toLowerCase(), id: Number(link[2]) };
+    if (/^\d{1,7}$/.test(str) && Number(str) > 0) return { kind: null, id: Number(str) };
+    return null;
+  }
+
+  function showMatchError(text) {
+    matchError.textContent = text;
+    matchError.classList.remove('hidden');
+  }
+
+  matchForm.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const session = currentSession;
+    if (!session) return;
+    const parsed = parseMalInput(matchInput.value);
+    if (!parsed) return showMatchError('Paste a MyAnimeList link (or just the number in it).');
+    if (parsed.kind && parsed.kind !== session.kind) {
+      return showMatchError(`That's a MyAnimeList ${parsed.kind} link, but this is ${session.kind === 'manga' ? 'a manga' : 'an anime'}.`);
+    }
+
+    const btn = document.getElementById('btn-save-match');
+    btn.disabled = true;
+    try {
+      const res = await chrome.runtime.sendMessage({
+        type: 'SET_MATCH_OVERRIDE',
+        data: { kind: session.kind, title: session.title, malId: parsed.id }
+      });
+      if (res?.success) {
+        matchForm.classList.add('hidden');
+        matchError.classList.add('hidden');
+        session.malId = res.entry.id;
+        session.malTitle = res.entry.title;
+        matchText.textContent = `MAL: ${res.entry.title}`;
+        matchText.title = matchText.textContent;
+      } else {
+        showMatchError(res?.error || 'Could not save the match.');
+      }
+    } catch (err) {
+      showMatchError(err.message || 'Could not save the match.');
+    } finally {
+      btn.disabled = false;
     }
   });
 
@@ -273,6 +402,20 @@ document.addEventListener('DOMContentLoaded', async () => {
     await chrome.storage.local.set({ settings });
   });
 
+  // Manga toggle change
+  toggleManga.addEventListener('change', async (e) => {
+    const { settings = {} } = await chrome.storage.local.get('settings');
+    settings.trackManga = e.target.checked;
+    await chrome.storage.local.set({ settings });
+  });
+
+  // Rewatch / reread tracking toggle
+  toggleRewatch.addEventListener('change', async (e) => {
+    const { settings = {} } = await chrome.storage.local.get('settings');
+    settings.trackRewatches = e.target.checked;
+    await chrome.storage.local.set({ settings });
+  });
+
   // ---------- Site list freshness (full edition) ----------
   const siteListRow = document.getElementById('site-list-row');
   const siteListInfo = document.getElementById('site-list-info');
@@ -284,7 +427,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       siteListInfo.textContent = 'Not loaded yet';
       return;
     }
-    let text = `${meta.sites} sites · ${meta.domains} domains · checked ${formatTimeAgo(meta.checkedAt)} (${meta.source})`;
+    let text = `${meta.sites} anime sites · ${meta.mangaSites || 0} manga sites · ${meta.domains + (meta.mangaDomains || 0)} domains · checked ${formatTimeAgo(meta.checkedAt)} (${meta.source})`;
     const ch = meta.lastChange;
     if (ch) text += ` · last change ${formatTimeAgo(ch.at)}: +${ch.added.length} / −${ch.removed.length}`;
     siteListInfo.textContent = text;
@@ -419,7 +562,8 @@ document.addEventListener('DOMContentLoaded', async () => {
     btnSiteToggle.disabled = false;
 
     if (st.builtin) {
-      siteState.textContent = '✓ Supported out of the box';
+      const kinds = [st.builtinAnime && 'anime', st.builtinManga && 'manga'].filter(Boolean).join(' + ');
+      siteState.textContent = `✓ Supported out of the box${kinds ? ` (${kinds})` : ''}`;
       siteState.classList.add('site-state-on');
       btnSiteToggle.classList.add('hidden');
     } else if (st.userSite) {
@@ -537,9 +681,9 @@ document.addEventListener('DOMContentLoaded', async () => {
 
   // Poll for live playback changes while popup is open
   setInterval(async () => {
-    const { current_playback } = await chrome.storage.local.get('current_playback');
-    if (current_playback) {
-      updatePlaybackUI(current_playback);
-    }
+    const { current_playback, current_reading } = await chrome.storage.local.get(['current_playback', 'current_reading']);
+    latestPlayback = current_playback || null;
+    latestReading = current_reading || null;
+    updateSessionUI();
   }, 3000);
 });

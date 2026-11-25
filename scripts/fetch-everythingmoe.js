@@ -21,16 +21,22 @@ async function run() {
 
   const payload = parseEverythingMoe(resSearch, resMain);
   if (payload.totalDomains < 100) throw new Error('Only ' + payload.totalDomains + ' domains parsed - EverythingMoe format may have changed. Nothing written.');
+  if (payload.totalMangaDomains < 50) throw new Error('Only ' + payload.totalMangaDomains + ' manga domains parsed - EverythingMoe format may have changed. Nothing written.');
 
   // Show what changed compared to the current bundled list
-  let previous = [];
-  try { previous = JSON.parse(fs.readFileSync('cloudflare-worker/sites.json', 'utf8')).domains || []; } catch (_) {}
-  const before = new Set(previous), after = new Set(payload.domains);
-  const added = payload.domains.filter(d => !before.has(d));
-  const removed = previous.filter(d => !after.has(d));
-  console.log('Sites: ' + payload.totalSites + ' | Domains: ' + payload.totalDomains);
-  console.log('Added (' + added.length + '): ' + (added.join(', ') || '-'));
-  console.log('Removed (' + removed.length + '): ' + (removed.join(', ') || '-'));
+  let previous = {};
+  try { previous = JSON.parse(fs.readFileSync('cloudflare-worker/sites.json', 'utf8')); } catch (_) {}
+  const report = (label, oldList, newList) => {
+    const before = new Set(oldList || []), after = new Set(newList);
+    const added = newList.filter(d => !before.has(d));
+    const removed = (oldList || []).filter(d => !after.has(d));
+    console.log(label + ' added (' + added.length + '): ' + (added.join(', ') || '-'));
+    console.log(label + ' removed (' + removed.length + '): ' + (removed.join(', ') || '-'));
+  };
+  console.log('Anime: ' + payload.totalSites + ' sites, ' + payload.totalDomains + ' domains');
+  console.log('Manga: ' + payload.totalMangaSites + ' sites, ' + payload.totalMangaDomains + ' domains');
+  report('Anime', previous.domains, payload.domains);
+  report('Manga', previous.mangaDomains, payload.mangaDomains);
 
   fs.mkdirSync('cloudflare-worker', { recursive: true });
   fs.writeFileSync('cloudflare-worker/sites.json', JSON.stringify(payload, null, 2));
@@ -39,7 +45,7 @@ async function run() {
   const workerJsContent = `/**
  * AniSync - Cloudflare Worker Backend
  * Live at: https://anisync-api.YOUR-SUBDOMAIN.workers.dev/
- * Generated with 109 Anime Sites & 324+ Proxies/Mirrors from EverythingMoe
+ * Generated with ${payload.totalSites} anime sites (${payload.totalDomains} domains) and ${payload.totalMangaSites} manga sites (${payload.totalMangaDomains} domains) from EverythingMoe
  */
 
 const DATA = ${JSON.stringify(payload, null, 2)};
@@ -103,7 +109,10 @@ export default {
 `;
 
   fs.writeFileSync('cloudflare-worker/worker.js', workerJsContent);
-  console.log('Successfully generated sites.json and worker.js with ' + payload.totalSites + ' sites and ' + payload.totalDomains + ' domains!');
+  console.log('Successfully generated sites.json and worker.js.');
 }
 
-run().catch(console.error);
+run().catch((err) => {
+  console.error(err);
+  process.exitCode = 1;
+});

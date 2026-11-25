@@ -15,7 +15,14 @@ const MAL_CONFIG = {
 
 const SEARCH_CACHE_PREFIX = 'cache_anime_';
 const ANIME_INFO_PREFIX = 'anime_info_';
+const MANGA_SEARCH_CACHE_PREFIX = 'cache_manga_';
+const MANGA_INFO_PREFIX = 'manga_info_';
 const ANISKIP_PREFIX = 'aniskip_';
+// Titles the user matched by hand in the popup: { 'anime:<title>': id, 'manga:<title>': id }
+const MATCH_OVERRIDES_KEY = 'match_overrides';
+// MAL's manga search also returns light novels; on a manga reader the comic wins a tie
+const NOVEL_TYPES = ['light_novel', 'novel'];
+const NOVEL_PENALTY = 0.05;
 const SEARCH_CACHE_TTL_MS = 7 * 24 * 60 * 60 * 1000; // 7 days
 const MIN_MATCH_SCORE = 0.6; // Dice similarity required to accept a search result
 // Lower bar when the site itself gave us the MAL ID: we only need to rule out an
@@ -93,7 +100,14 @@ class MalClient {
         },
         async (redirectUrl) => {
           if (chrome.runtime.lastError || !redirectUrl) {
-            const err = chrome.runtime.lastError?.message || 'Login was cancelled or failed to open.';
+            let err = chrome.runtime.lastError?.message || 'Login was cancelled or failed to open.';
+            // MAL refuses login addresses that aren't registered in the MAL API app
+            // (Chrome only says the page "could not be loaded"). Each extension ID has
+            // its own address, e.g. a store install or an unpacked copy without "key".
+            if (/could not be loaded/i.test(err)) {
+              err = `MyAnimeList refused this login address: ${this.redirectUri} — add it to the ` +
+                'App Redirect URLs of the MAL API app (myanimelist.net/apiconfig), then try again.';
+            }
             return reject(new Error(err));
           }
 
@@ -266,37 +280,83 @@ class MalClient {
       .filter(Boolean);
   }
 
-  // Sørensen–Dice similarity on word tokens (0..1)
+  // Sørensen–Dice similarity on word tokens (0..1). Words that differ by one letter
+  // (romanization: "Kamui" / "Kamuy") count as 0.75 of a match, but only when the titles
+  // also share an exact real word (4+ letters, not "x" / "no" / "the"), so "Bleach" can
+  // never match "Breach" and "Hunter x Hunter" can't match "Hunted x Hunted".
   _similarity(a, b) {
     const ta = this._tokens(a);
     const tb = this._tokens(b);
     if (ta.length === 0 || tb.length === 0) return 0;
     const pool = [...tb];
-    let common = 0;
+    let exact = 0;
+    let anchor = false; // shares an exact word of 4+ letters
+    const unmatched = [];
     for (const t of ta) {
       const idx = pool.indexOf(t);
       if (idx !== -1) {
-        common++;
+        exact++;
+        if (t.length >= 4) anchor = true;
         pool.splice(idx, 1);
+      } else {
+        unmatched.push(t);
       }
     }
-    return (2 * common) / (ta.length + tb.length);
+    let near = 0;
+    if (anchor) {
+      for (const t of unmatched) {
+        const idx = pool.findIndex(p => this._oneEditApart(t, p));
+        if (idx !== -1) {
+          near++;
+          pool.splice(idx, 1);
+        }
+      }
+    }
+    return (2 * (exact + 0.75 * near)) / (ta.length + tb.length);
   }
 
-  _cacheKey(cleanTitle) {
-    return `${SEARCH_CACHE_PREFIX}${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
+  // True if two words (5+ letters, not numbers) differ by exactly one letter
+  // substituted, added or removed
+  _oneEditApart(a, b) {
+    if (a.length < 5 || b.length < 5 || /\d/.test(a + b) || Math.abs(a.length - b.length) > 1) return false;
+    let i = 0;
+    let j = 0;
+    let edits = 0;
+    while (i < a.length && j < b.length) {
+      if (a[i] === b[j]) { i++; j++; continue; }
+      if (++edits > 1) return false;
+      if (a.length > b.length) i++;
+      else if (b.length > a.length) j++;
+      else { i++; j++; }
+    }
+    return edits + (a.length - i) + (b.length - j) === 1;
+  }
+
+  _cacheKey(cleanTitle, kind = 'anime') {
+    const prefix = kind === 'manga' ? MANGA_SEARCH_CACHE_PREFIX : SEARCH_CACHE_PREFIX;
+    return `${prefix}${cleanTitle.toLowerCase().replace(/[^a-z0-9]/g, '_')}`;
   }
 
   // Search anime on MAL by title. Returns { id, title, num_episodes, main_picture } or null
   // when no result is a confident match.
   async searchAnime(title) {
+    return this._searchTitle(title, 'anime');
+  }
+
+  // Search manga (incl. manhwa / manhua) on MAL by title.
+  // Returns { id, title, num_chapters, media_type, main_picture } or null.
+  async searchManga(title) {
+    return this._searchTitle(title, 'manga');
+  }
+
+  async _searchTitle(title, kind) {
     const token = await this.getValidAccessToken();
     if (!token) throw new Error('Not authenticated with MyAnimeList');
 
     const cleanTitle = this.normalizeTitle(title);
-    if (!cleanTitle) throw new Error('Empty anime title');
+    if (!cleanTitle) throw new Error(`Empty ${kind} title`);
 
-    const cacheKey = this._cacheKey(cleanTitle);
+    const cacheKey = this._cacheKey(cleanTitle, kind);
     const cached = (await chrome.storage.local.get(cacheKey))[cacheKey];
     if (cached && cached.node && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) {
       return cached.node;
@@ -307,15 +367,23 @@ class MalClient {
     // title finds nothing usable, retry with shorter prefixes. Every result is still
     // scored against the FULL title, so a shorter query can't pull in the wrong show.
     for (const query of this._queryVariants(cleanTitle)) {
-      const results = await this._searchRequest(query, token);
-      const candidate = results.length ? this.selectBestMatch(cleanTitle, results) : null;
+      const results = await this._searchRequest(query, token, kind);
+      const candidate = results.length ? this.selectBestMatch(cleanTitle, results, kind) : null;
       if (candidate) {
-        const node = {
-          id: candidate.id,
-          title: candidate.title,
-          num_episodes: candidate.num_episodes || 0,
-          main_picture: candidate.main_picture || null
-        };
+        const node = kind === 'manga'
+          ? {
+            id: candidate.id,
+            title: candidate.title,
+            num_chapters: candidate.num_chapters || 0,
+            media_type: candidate.media_type || 'unknown',
+            main_picture: candidate.main_picture || null
+          }
+          : {
+            id: candidate.id,
+            title: candidate.title,
+            num_episodes: candidate.num_episodes || 0,
+            main_picture: candidate.main_picture || null
+          };
         await chrome.storage.local.set({ [cacheKey]: { node, cachedAt: Date.now() } });
         return node;
       }
@@ -335,12 +403,14 @@ class MalClient {
     return [...new Set(variants.map(v => v.slice(0, 64).trim()))].filter(v => v.length >= 3);
   }
 
-  async _searchRequest(query, token) {
+  async _searchRequest(query, token, kind = 'anime') {
     // nsfw=true: without it MAL silently hides every ecchi/fanservice title ("gray"),
     // e.g. "Marika's Love Meter Malfunction" -> zero results. We only use the results
     // to match what the user is already watching.
-    const url = `${MAL_CONFIG.API_BASE}/anime?q=${encodeURIComponent(query)}&limit=10&nsfw=true` +
-      `&fields=id,title,alternative_titles,num_episodes,main_picture`;
+    const fields = kind === 'manga'
+      ? 'id,title,alternative_titles,num_chapters,media_type,main_picture'
+      : 'id,title,alternative_titles,num_episodes,main_picture';
+    const url = `${MAL_CONFIG.API_BASE}/${kind}?q=${encodeURIComponent(query)}&limit=10&nsfw=true&fields=${fields}`;
     const res = await fetch(url, {
       headers: {
         'Authorization': `Bearer ${token}`
@@ -348,7 +418,7 @@ class MalClient {
     });
 
     if (!res.ok) {
-      throw new Error(`Anime search failed: ${res.status}`);
+      throw new Error(`${kind === 'manga' ? 'Manga' : 'Anime'} search failed: ${res.status}`);
     }
 
     const data = await res.json();
@@ -357,7 +427,7 @@ class MalClient {
 
   // Pick the result whose title (or any alternative title) is most similar to the query.
   // Returns null if nothing clears MIN_MATCH_SCORE, so we never guess.
-  selectBestMatch(query, items) {
+  selectBestMatch(query, items, kind = 'anime') {
     let best = null;
     let bestScore = 0;
 
@@ -365,9 +435,10 @@ class MalClient {
       const node = item.node;
       const alts = node.alternative_titles || {};
       const names = [node.title, alts.en, alts.ja, ...(alts.synonyms || [])].filter(Boolean);
+      const penalty = kind === 'manga' && NOVEL_TYPES.includes(node.media_type) ? NOVEL_PENALTY : 0;
 
       for (const name of names) {
-        const score = this._similarity(query, name);
+        const score = this._similarity(query, name) - penalty;
         if (score > bestScore) {
           bestScore = score;
           best = node;
@@ -382,9 +453,11 @@ class MalClient {
   // Remove all cached title -> anime matches
   async clearSearchCache() {
     const all = await chrome.storage.local.get(null);
+    // Hand-made matches (MATCH_OVERRIDES_KEY) are the user's own choice and are kept
     const keys = Object.keys(all).filter(k =>
       k.startsWith(SEARCH_CACHE_PREFIX) || k.startsWith('last_sync_') ||
-      k.startsWith(ANIME_INFO_PREFIX) || k.startsWith(ANISKIP_PREFIX));
+      k.startsWith(ANIME_INFO_PREFIX) || k.startsWith(ANISKIP_PREFIX) ||
+      k.startsWith(MANGA_SEARCH_CACHE_PREFIX) || k.startsWith(MANGA_INFO_PREFIX));
     if (keys.length > 0) await chrome.storage.local.remove(keys);
     return keys.length;
   }
@@ -437,6 +510,11 @@ class MalClient {
   // only trusted if MAL's names for it resemble the page title: a site bug or a stray
   // ID must never put a different anime on the user's list.
   async resolveAnime(title, malId) {
+    const overrideId = await this.getOverride('anime', title);
+    if (overrideId) {
+      const byOverride = await this.getAnimeById(overrideId).catch(() => null);
+      if (byOverride) return byOverride;
+    }
     if (malId > 0) {
       try {
         const info = await this.getAnimeInfo(malId);
@@ -449,6 +527,178 @@ class MalClient {
       }
     }
     return this.searchAnime(title);
+  }
+
+  // Change any list fields (e.g. is_rewatching / num_times_rewatched) on an anime or
+  // manga entry. Returns MAL's full list status for the entry, including the rewatch /
+  // reread counter (which a normal GET doesn't return).
+  async patchListStatus(kind, id, fields) {
+    const token = await this.getValidAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const body = new URLSearchParams();
+    for (const [k, v] of Object.entries(fields)) body.set(k, String(v));
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/${kind === 'manga' ? 'manga' : 'anime'}/${id}/my_list_status`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Failed to update list status: ${res.status} ${errText}`);
+    }
+    return await res.json();
+  }
+
+  // ---------- Hand-made matches ("Wrong match?" in the popup) ----------
+
+  _overrideKey(kind, title) {
+    return `${kind}:${this._tokens(this.normalizeTitle(title)).join(' ')}`;
+  }
+
+  async getOverride(kind, title) {
+    if (!title) return null;
+    const { [MATCH_OVERRIDES_KEY]: map = {} } = await chrome.storage.local.get(MATCH_OVERRIDES_KEY);
+    const id = map[this._overrideKey(kind, title)];
+    return id > 0 ? id : null;
+  }
+
+  // Always points this site title at the given MAL entry. Returns the entry, or throws
+  // if the ID doesn't exist on MAL.
+  async setOverride(kind, title, malId) {
+    const id = parseInt(malId, 10);
+    if (!title || !(id > 0)) throw new Error('Missing title or MyAnimeList ID');
+    let entry = null;
+    try {
+      entry = kind === 'manga' ? await this.getMangaById(id) : await this.getAnimeById(id);
+    } catch (err) {
+      if (!/\b404\b/.test(err.message)) throw err;
+    }
+    if (!entry) throw new Error(`No ${kind} with ID ${id} on MyAnimeList`);
+
+    const { [MATCH_OVERRIDES_KEY]: map = {} } = await chrome.storage.local.get(MATCH_OVERRIDES_KEY);
+    map[this._overrideKey(kind, title)] = id;
+    // The automatic match and the "already synced" marker belonged to the old entry
+    const cleanTitle = this.normalizeTitle(title);
+    await chrome.storage.local.remove([
+      this._cacheKey(cleanTitle, kind),
+      `${kind === 'manga' ? 'last_sync_manga_' : 'last_sync_'}${title.toLowerCase().trim()}`
+    ]);
+    await chrome.storage.local.set({ [MATCH_OVERRIDES_KEY]: map });
+    return entry;
+  }
+
+  // ---------- Manga ----------
+
+  // Facts used to sync chapters: type (manga/manhwa/one_shot/...), chapter count
+  // (0 while ongoing) and every name MAL knows it by. Cached for 7 days.
+  async getMangaInfo(mangaId) {
+    const key = `${MANGA_INFO_PREFIX}${mangaId}`;
+    const cached = (await chrome.storage.local.get(key))[key];
+    if (cached && cached.info?.title && Date.now() - cached.cachedAt < SEARCH_CACHE_TTL_MS) {
+      return cached.info;
+    }
+
+    const token = await this.getValidAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/manga/${mangaId}?fields=num_chapters,num_volumes,media_type,main_picture,alternative_titles`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error(`Failed to fetch manga info: ${res.status}`);
+
+    const data = await res.json();
+    const alts = data.alternative_titles || {};
+    const info = {
+      title: data.title || '',
+      names: [data.title, alts.en, alts.ja, ...(alts.synonyms || [])].filter(Boolean),
+      mainPicture: data.main_picture || null,
+      numChapters: data.num_chapters || 0,
+      numVolumes: data.num_volumes || 0,
+      mediaType: data.media_type || 'unknown'
+    };
+    await chrome.storage.local.set({ [key]: { info, cachedAt: Date.now() } });
+    return info;
+  }
+
+  async getMangaById(mangaId) {
+    const info = await this.getMangaInfo(mangaId);
+    if (!info.title) return null;
+    return {
+      id: Number(mangaId),
+      title: info.title,
+      num_chapters: info.numChapters,
+      media_type: info.mediaType,
+      main_picture: info.mainPicture
+    };
+  }
+
+  // Same rules as resolveAnime(): hand-made match, then a page ID that agrees with the
+  // title, then a title search
+  async resolveManga(title, malId) {
+    const overrideId = await this.getOverride('manga', title);
+    if (overrideId) {
+      const byOverride = await this.getMangaById(overrideId).catch(() => null);
+      if (byOverride) return byOverride;
+    }
+    if (malId > 0) {
+      try {
+        const info = await this.getMangaInfo(malId);
+        const byId = await this.getMangaById(malId);
+        const score = title ? Math.max(0, ...(info.names || []).map(n => this._similarity(title, n))) : 1;
+        if (byId && score >= MAL_ID_MIN_TITLE_SCORE) return byId;
+        if (byId) console.warn(`[AniSync] Page MAL manga ID ${malId} (${byId.title}) doesn't match "${title}" — using title search`);
+      } catch (err) {
+        console.warn('[AniSync] MAL manga ID lookup failed, falling back to title search:', err.message);
+      }
+    }
+    return this.searchManga(title);
+  }
+
+  // The user's current list status for a manga (always fresh, never cached)
+  async getMangaListStatus(mangaId) {
+    const token = await this.getValidAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/manga/${mangaId}?fields=num_chapters,my_list_status`, {
+      headers: { 'Authorization': `Bearer ${token}` }
+    });
+    if (!res.ok) throw new Error(`Failed to fetch manga list status: ${res.status}`);
+
+    const data = await res.json();
+    return {
+      numChapters: data.num_chapters || 0,
+      listStatus: data.my_list_status || null
+    };
+  }
+
+  // Update chapters read. `status` is optional; omit it to leave the list status unchanged.
+  async updateReadProgress(mangaId, chapterNumber, status = null) {
+    const token = await this.getValidAccessToken();
+    if (!token) throw new Error('Not authenticated');
+
+    const ch = parseInt(chapterNumber, 10);
+    if (isNaN(ch) || ch < 1) throw new Error(`Invalid chapter number: ${chapterNumber}`);
+
+    const body = new URLSearchParams({ num_chapters_read: String(ch) });
+    if (status) body.set('status', status);
+
+    const res = await fetch(`${MAL_CONFIG.API_BASE}/manga/${mangaId}/my_list_status`, {
+      method: 'PATCH',
+      headers: {
+        'Authorization': `Bearer ${token}`,
+        'Content-Type': 'application/x-www-form-urlencoded'
+      },
+      body: body.toString()
+    });
+    if (!res.ok) {
+      const errText = await res.text();
+      throw new Error(`Failed to update manga list status: ${res.status} ${errText}`);
+    }
+    return await res.json();
   }
 
   // Fetch the user's current list status for an anime (always fresh, never cached)

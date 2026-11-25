@@ -10,7 +10,9 @@ const EVERYTHINGMOE_MAIN_URL = 'https://everythingmoe.com/data/cache/main.json';
 // Links on EverythingMoe that are not streaming sites
 const EVERYTHINGMOE_IGNORED_HOSTS = [
   'github.com', 'discord.gg', 'discord.com', 't.me', 'reddit.com',
-  'twitter.com', 'x.com', 'everythingmoe.com', 'patreon.com'
+  'twitter.com', 'x.com', 'everythingmoe.com', 'patreon.com',
+  // App store pages for a site's mobile app
+  'apps.apple.com', 'play.google.com'
 ];
 
 function emExtractHostname(urlStr) {
@@ -42,14 +44,37 @@ function emParseLinksFromText(rawText) {
   return domains;
 }
 
+// EverythingMoe categories AniSync tracks. Sites EverythingMoe retires move to its
+// "dead" category, so they drop out of these lists on the next refresh.
+const EVERYTHINGMOE_ANIME_TYPES = ['anime'];
+const EVERYTHINGMOE_MANGA_TYPES = ['manga', 'manhwa'];
+
 function parseEverythingMoe(search, main) {
   if (!Array.isArray(search) || !main || typeof main !== 'object') {
     throw new Error('Unexpected EverythingMoe data format');
   }
+  const anime = emCollectSites(search, main, EVERYTHINGMOE_ANIME_TYPES);
+  const manga = emCollectSites(search, main, EVERYTHINGMOE_MANGA_TYPES);
+  return {
+    version: '1.1.0',
+    updatedAt: new Date().toISOString(),
+    totalSites: anime.sites.length,
+    totalDomains: anime.domains.length,
+    domains: anime.domains,
+    sites: anime.sites,
+    // Manga / manhwa readers, kept separate: they are tracked by chapter, not by video
+    totalMangaSites: manga.sites.length,
+    totalMangaDomains: manga.domains.length,
+    mangaDomains: manga.domains,
+    mangaSites: manga.sites
+  };
+}
+
+function emCollectSites(search, main, types) {
   const sites = [];
   const allDomains = new Set();
 
-  for (const s of search.filter(item => item && item.type === 'anime')) {
+  for (const s of search.filter(item => item && types.includes(item.type))) {
     const siteDomains = new Set();
     const primary = emExtractHostname(s.link);
     if (primary) siteDomains.add(primary);
@@ -68,15 +93,7 @@ function parseEverythingMoe(search, main) {
     sites.push({ id: s.id, name: s.title, primaryUrl: s.link, domains: domainList });
   }
 
-  const domains = [...allDomains].sort();
-  return {
-    version: '1.0.0',
-    updatedAt: new Date().toISOString(),
-    totalSites: sites.length,
-    totalDomains: domains.length,
-    domains,
-    sites
-  };
+  return { sites, domains: [...allDomains].sort() };
 }
 
 // Shown in the popup as the list's source
