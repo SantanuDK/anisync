@@ -1,6 +1,5 @@
 /**
  * AniSync - Cloudflare Worker Backend
- * Live at: https://anisync-api.YOUR-SUBDOMAIN.workers.dev/
  * Generated with 108 anime sites (329 domains) and 169 manga sites (368 domains) from EverythingMoe
  */
 

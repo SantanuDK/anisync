@@ -3,6 +3,10 @@
 // Chrome loads this file as a service worker and needs importScripts.
 // Firefox loads all files via background.scripts, so they are already present.
 if (typeof importScripts === 'function') {
+  // Developer's own MAL Client ID / Worker URL (git-ignored; see private-config.example.js)
+  try { importScripts('private-config.js'); } catch (_) {
+    console.error('[AniSync] background/private-config.js is missing: copy private-config.example.js and fill it in.');
+  }
   importScripts('edition.js');
   // Only the full edition ships the site-index reader
   if (ANISYNC_EDITION.siteIndex) importScripts('site-index.js');
@@ -363,7 +367,7 @@ async function showNotification(title, message) {
 
 // ---------- Tab-based login (Firefox) ----------
 // Registered at top level so it also wakes a suspended background page.
-if (malClient.authFlow === 'tab') {
+if (malClient.authFlow === 'tab' && MAL_CONFIG.TAB_REDIRECT_URI) {
   chrome.tabs.onUpdated.addListener((tabId, changeInfo) => {
     const url = changeInfo.url;
     if (!url || !url.startsWith(MAL_CONFIG.TAB_REDIRECT_URI)) return;

@@ -44,7 +44,6 @@ async function run() {
   // Also build the standalone Cloudflare Worker script embedding this list!
   const workerJsContent = `/**
  * AniSync - Cloudflare Worker Backend
- * Live at: https://anisync-api.YOUR-SUBDOMAIN.workers.dev/
  * Generated with ${payload.totalSites} anime sites (${payload.totalDomains} domains) and ${payload.totalMangaSites} manga sites (${payload.totalMangaDomains} domains) from EverythingMoe
  */
 

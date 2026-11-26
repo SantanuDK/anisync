@@ -1,16 +1,18 @@
 // AniSync - MyAnimeList API Client (OAuth 2.0 PKCE)
 
 const EDITION_CONFIG = typeof ANISYNC_EDITION !== 'undefined' ? ANISYNC_EDITION : {};
+// Developer-specific values live in the git-ignored background/private-config.js
+const PRIVATE_CONFIG = typeof ANISYNC_PRIVATE !== 'undefined' ? ANISYNC_PRIVATE : {};
 
 const MAL_CONFIG = {
   // A build can use its own MAL app (e.g. if MAL allows only one redirect URL per app)
-  CLIENT_ID: EDITION_CONFIG.malClientId || 'YOUR_MAL_CLIENT_ID',
+  CLIENT_ID: EDITION_CONFIG.malClientId || PRIVATE_CONFIG.malClientId || '',
   AUTH_URL: 'https://myanimelist.net/v1/oauth2/authorize',
   TOKEN_URL: 'https://myanimelist.net/v1/oauth2/token',
   API_BASE: 'https://api.myanimelist.net/v2',
   // Redirect used by the tab-based login (Firefox, where identity.launchWebAuthFlow is
   // missing on Android). Must be registered in the MAL API app.
-  TAB_REDIRECT_URI: 'https://anisync-api.YOUR-SUBDOMAIN.workers.dev/oauth/callback'
+  TAB_REDIRECT_URI: PRIVATE_CONFIG.workerUrl ? PRIVATE_CONFIG.workerUrl + '/oauth/callback' : ''
 };
 
 const SEARCH_CACHE_PREFIX = 'cache_anime_';
@@ -82,6 +84,12 @@ class MalClient {
   // Initiate OAuth 2.0 PKCE login flow (MAL only supports the "plain" method)
   async login() {
     const codeVerifier = this.generateCodeVerifier();
+    if (!MAL_CONFIG.CLIENT_ID || MAL_CONFIG.CLIENT_ID === 'YOUR_MAL_CLIENT_ID') {
+      throw new Error('No MAL Client ID set: copy background/private-config.example.js to private-config.js and add yours.');
+    }
+    if (this.authFlow === 'tab' && !this.redirectUri) {
+      throw new Error('Tab login needs workerUrl in background/private-config.js (its /oauth/callback is the redirect).');
+    }
     await chrome.storage.local.set({ pkce_code_verifier: codeVerifier });
     const authUrl = this._buildAuthUrl(codeVerifier);
 

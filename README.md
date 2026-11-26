@@ -19,6 +19,20 @@
 
 ---
 
+## 🔑 Setup: Your Own MyAnimeList App (required)
+
+AniSync needs a MyAnimeList API Client ID. **Please register your own** — don't reuse someone else's: everything sent with a Client ID counts against that app, and misuse can get it disabled for everyone using it.
+
+1. Go to [myanimelist.net/apiconfig](https://myanimelist.net/apiconfig) → **Create ID**. App Type: **other** (public PKCE client, no secret needed).
+2. Copy `background/private-config.example.js` to `background/private-config.js` and put your Client ID in `malClientId`. Optionally set `workerUrl` to your own deployed `cloudflare-worker/` (needed for the Firefox login and the remote site list).
+3. Add your redirect URLs to the MAL app's **App Redirect URLs**:
+   - Chrome: `https://<extension-id>.chromiumapp.org/` (the popup shows the exact address if MAL refuses the login).
+   - Firefox: `<workerUrl>/oauth/callback`.
+
+`private-config.js` is git-ignored, so your IDs never end up in the repository. Note that any *built* extension still contains its Client ID (the browser needs it to log in); that's normal for public PKCE clients and gives no access to your MAL account.
+
+---
+
 ## 🛠️ How to Load and Test in Chrome
 
 1. Open Google Chrome and navigate to:
@@ -43,7 +57,7 @@
 2. Click **Load Temporary Add-on...**
 3. Build the Firefox version first with `node scripts/build.js`, then select `dist/firefox/manifest.json`. (The root `manifest.json` is Chrome-only, so Chrome shows no warnings.)
 4. Firefox treats MV3 host permissions as opt-in: open the add-on's **Permissions** tab and allow **Access your data for all websites**, otherwise the detector never runs.
-5. **OAuth redirect:** Firefox uses a different redirect URL than Chrome. Run `browser.identity.getRedirectURL()` in the add-on's background console and register that URL in your MAL API app (or create a separate MAL client for Firefox if only one redirect is allowed).
+5. **OAuth redirect:** Firefox logs in through a normal tab that ends at `<workerUrl>/oauth/callback` (from `background/private-config.js`). Register that URL in your MAL API app (or create a separate MAL client for Firefox if only one redirect is allowed).
 
 Requires Firefox 115+.
 
@@ -70,7 +84,7 @@ Creates `dist/anisync-chrome-<version>.zip` (Chrome Web Store, with the dev-only
 
 Regular Firefox for Android only installs Mozilla-signed add-ons; **Firefox Nightly** can install unsigned ones.
 
-1. One-time MAL setup: add `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/oauth/callback` as a redirect URL in your MAL API app. If MAL allows only one redirect per app, create a second MAL app with that URL and set `FIREFOX_MAL_CLIENT_ID` in `scripts/build.js`.
+1. One-time MAL setup: add `<workerUrl>/oauth/callback` as a redirect URL in your MAL API app. If MAL allows only one redirect per app, create a second MAL app with that URL and set `FIREFOX_MAL_CLIENT_ID` in `scripts/build.js`.
 2. `node scripts/build.js` and copy `dist/anisync-firefox-<version>.zip` to the phone.
 3. In Firefox Nightly: open `about:config` and set `xpinstall.signatures.required` to `false`.
 4. Settings → About Firefox Nightly → tap the logo until the debug menu unlocks → Settings → **Install extension from file** → pick the zip.
@@ -125,6 +139,7 @@ anisync extension/
 │   ├── icon48.png
 │   └── icon128.png
 ├── background/
+│   ├── private-config.example.js # Template for your git-ignored private-config.js
 │   ├── mal-client.js          # MAL REST API client with OAuth 2.0 PKCE
 │   └── service-worker.js      # Background worker handling syncs & notifications
 ├── content/
@@ -139,17 +154,8 @@ anisync extension/
 
 ## ☁️ Cloudflare Dynamic Backend
 
-- **Live Worker Root**: `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/`
-- **Sites API**: `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/sites` (109 sites with mirrors and proxies)
-- **Domains API**: `https://anisync-api.YOUR-SUBDOMAIN.workers.dev/domains` (324 unique domains)
+- **Endpoints** (on your own deployment, set as `workerUrl` in `background/private-config.js`): `/sites` (sites with mirrors and proxies), `/domains` (unique domains), `/oauth/callback` (Firefox login redirect)
 - **Source**: Extracted directly from [EverythingMoe](https://everythingmoe.com/) index, covering all 109 anime streaming sites and their mirror/proxy networks.
 - **Advantage**: Whenever anime streaming domains change (e.g. from `.to` to `.tv` or new proxies appear), you simply update the Cloudflare Worker or run `node scripts/fetch-everythingmoe.js` without having to resubmit the extension to the Chrome Web Store!
 - **Local Code**: Stored in `cloudflare-worker/` with `wrangler.toml` and `sites.json`.
 
----
-
-## 🔑 Registered MAL Client Information
-
-- **Client ID**: `YOUR_MAL_CLIENT_ID`
-- **Application Type**: `Other` (Public PKCE client)
-- **App Redirect URL**: `https://YOUR-EXTENSION-ID.chromiumapp.org/`

@@ -26,3 +26,6 @@ yarn-debug.log*
 
 # Build output
 dist/
+
+# Private developer config (MAL Client ID, Worker URL)
+background/private-config.js

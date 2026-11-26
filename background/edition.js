@@ -6,7 +6,9 @@
 const ANISYNC_EDITION = {
   name: 'full',
   // Remote site list (null = bundled list only)
-  sitesUrl: 'https://anisync-api.YOUR-SUBDOMAIN.workers.dev/sites',
+  sitesUrl: typeof ANISYNC_PRIVATE !== 'undefined' && ANISYNC_PRIVATE.workerUrl
+    ? ANISYNC_PRIVATE.workerUrl + '/sites'
+    : null,
   // Read the public site index (EverythingMoe) directly every 12h: new mirrors in, dead ones out
   siteIndex: true,
   // Bundled fallback list, relative to the extension root

@@ -20,14 +20,28 @@ const vm = require('vm');
 const { execFileSync } = require('child_process');
 
 // If your MAL app only accepts one redirect URL (the Chrome one), create a second
-// MAL app with redirect https://anisync-api.YOUR-SUBDOMAIN.workers.dev/oauth/callback
-// and put its client ID here. null = use the same MAL app as Chrome.
+// MAL app with redirect <workerUrl>/oauth/callback (workerUrl from
+// background/private-config.js) and put its client ID here. null = same MAL app as Chrome.
 const FIREFOX_MAL_CLIENT_ID = null;
 
 const ROOT = path.resolve(__dirname, '..');
 const DIST = path.join(ROOT, 'dist');
 
 const STORE_NAME = 'AniSync - Anime Tracker for MyAnimeList';
+const PRIVATE_CONFIG_FILE = path.join(ROOT, 'background/private-config.js');
+if (!fs.existsSync(PRIVATE_CONFIG_FILE)) {
+  console.error('Missing background/private-config.js: copy background/private-config.example.js and fill in your MAL Client ID.');
+  process.exit(1);
+}
+// Evaluate config files the way the extension does (plain scripts defining globals)
+function loadGlobal(files, name) {
+  const sandbox = {};
+  const code = files.map(f => fs.readFileSync(path.join(ROOT, f), 'utf8')).join('\n');
+  vm.runInNewContext(`${code}\nthis.result = ${name};`, sandbox);
+  return sandbox.result;
+}
+const PRIVATE = loadGlobal(['background/private-config.js'], 'ANISYNC_PRIVATE');
+
 const MAL_HOSTS = ['https://api.myanimelist.net/*', 'https://myanimelist.net/*', 'https://api.aniskip.com/*'];
 
 function copy(src, dest) {
@@ -66,7 +80,7 @@ function buildTarget({ name, include, files = {}, exclude = [], transformManifes
   for (const item of include) {
     copy(path.join(ROOT, item), path.join(outDir, item));
   }
-  for (const rel of exclude) {
+  for (const rel of [...exclude, 'background/private-config.example.js']) {
     fs.rmSync(path.join(outDir, rel), { force: true });
   }
   for (const [rel, content] of Object.entries(files)) {
@@ -130,12 +144,8 @@ const ANISYNC_EDITION = {
 {
   // Root edition config, with Firefox overrides: log in through a normal tab
   // (identity.launchWebAuthFlow does not exist on Firefox for Android).
-  const sandbox = {};
-  vm.runInNewContext(
-    fs.readFileSync(path.join(ROOT, 'background/edition.js'), 'utf8') + '\nthis.result = ANISYNC_EDITION;',
-    sandbox
-  );
-  const firefoxEdition = { ...sandbox.result, authFlow: 'tab' };
+  const rootEdition = loadGlobal(['background/private-config.js', 'background/edition.js'], 'ANISYNC_EDITION');
+  const firefoxEdition = { ...rootEdition, authFlow: 'tab' };
   if (FIREFOX_MAL_CLIENT_ID) firefoxEdition.malClientId = FIREFOX_MAL_CLIENT_ID;
 
   buildTarget({
@@ -150,8 +160,12 @@ const ANISYNC_EDITION = {
       const out = { ...m };
       delete out.key;
       out.background = {
-        scripts: ['background/edition.js', 'background/site-index.js', 'background/mal-client.js', 'background/service-worker.js']
+        scripts: ['background/private-config.js', 'background/edition.js', 'background/site-index.js', 'background/mal-client.js', 'background/service-worker.js']
       };
+      // Firefox login lands on <workerUrl>/oauth/callback; reading that tab's URL needs host access
+      if (PRIVATE.workerUrl) {
+        out.host_permissions = [...new Set([...(m.host_permissions || []), PRIVATE.workerUrl + '/*'])];
+      }
       out.browser_specific_settings = {
         gecko: {
           id: 'anisync@extension.local',
