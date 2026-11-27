@@ -399,16 +399,34 @@ class MalClient {
     return null;
   }
 
-  // Full title first, then up to 3 shorter word prefixes (never below 2 words / half the title)
+  // Full title first (cut to whole words), the main clause before a comma, then shorter
+  // word prefixes (never below 2 words / half the title). MAL rejects queries longer than
+  // 64 characters: light-novel titles ("Now That I Can Control Reality with a Mouse
+  // Cursor, I'm Going to ...") used to be cut mid-word, and every shorter prefix was
+  // still over 64 characters, so they all collapsed into that one broken query.
   _queryVariants(cleanTitle) {
+    const MAX_QUERY = 64;
+    const tidy = (s) => s.replace(/[\s,.;:!?\-–]+$/, '').trim();
+    const fit = (words) => {
+      let n = words.length;
+      while (n > 1 && words.slice(0, n).join(' ').length > MAX_QUERY) n--;
+      return n;
+    };
     const words = cleanTitle.split(' ').filter(Boolean);
-    const variants = [words.join(' ')];
+    const fitted = fit(words);
+    const variants = [words.slice(0, fitted).join(' ')];
+
+    const clause = cleanTitle.split(/[,，]/)[0].trim();
+    if (clause !== cleanTitle) {
+      const clauseWords = clause.split(' ').filter(Boolean);
+      if (clauseWords.length >= 3) variants.push(clauseWords.slice(0, fit(clauseWords)).join(' '));
+    }
+
     const minWords = Math.max(2, Math.ceil(words.length / 2));
-    for (let n = words.length - 1; n >= minWords && variants.length < 4; n--) {
+    for (let n = fitted - 1; n >= minWords && variants.length < 5; n--) {
       variants.push(words.slice(0, n).join(' '));
     }
-    // MAL rejects queries longer than 64 characters or shorter than 3
-    return [...new Set(variants.map(v => v.slice(0, 64).trim()))].filter(v => v.length >= 3);
+    return [...new Set(variants.map(tidy))].filter(v => v.length >= 3 && v.length <= MAX_QUERY);
   }
 
   async _searchRequest(query, token, kind = 'anime') {

@@ -377,8 +377,11 @@
 
     function handleProgress(progress) {
       const { percentage, currentTime, duration, isFinished } = progress;
+      // A different video (next episode): re-read the page now instead of waiting for the
+      // 2.5s refresh, so the new video's progress isn't credited to the old episode
+      const videoChanged = !!lastProgress && Math.abs(lastProgress.duration - duration) > 5;
       lastProgress = progress;
-      const meta = currentMeta || refreshMeta();
+      const meta = currentMeta && !videoChanged ? currentMeta : refreshMeta();
       if (!meta) return;
 
       // A page without an episode number only matters for movie-length videos
@@ -405,12 +408,16 @@
             animeTitle: meta.title,
             episodeNumber: episode,
             malId: meta.malId,
-            malTitle: ready && plan.eligible ? plan.malTitle : null,
+            // Shown even when the episode is refused, so the popup doesn't claim "not matched"
+            malTitle: ready && plan.malTitle ? plan.malTitle : null,
+            reason: ready && !plan.eligible ? plan.reason || null : null,
+            shortVersion: ready && plan.eligible ? plan.shortVersion || null : null,
             percentage,
             currentTime,
             duration,
-            // Lets the background apply the "moved on to the next episode" rule
-            eligible,
+            // Lets the background apply the "moved on to the next episode" rule.
+            // null while the plan is loading: "don't know yet", not "not eligible"
+            eligible: planState === 'pending' ? null : eligible,
             site: window.location.hostname
           }
         }).catch(() => {});

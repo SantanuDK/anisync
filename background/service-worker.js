@@ -509,7 +509,7 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
         }
 
         case 'UPDATE_PLAYBACK_STATUS': {
-          const { animeTitle, episodeNumber, malId, malTitle, percentage, currentTime, duration, site, eligible } = message.data;
+          const { animeTitle, episodeNumber, malId, malTitle, percentage, currentTime, duration, site, eligible, reason, shortVersion } = message.data;
           const { current_playback: prev } = await chrome.storage.local.get('current_playback');
 
           const sameShow = !!prev && normTitle(prev.animeTitle) === normTitle(animeTitle);
@@ -527,8 +527,16 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
               maxPercentage: Math.max(percentage || 0, sameEpisode ? (prev.maxPercentage || prev.percentage || 0) : 0),
               currentTime,
               duration,
-              // Latest verdict wins (the detector's first report may come before its plan)
-              eligible: !!eligible,
+              // Latest verdict wins; null = the detector is still re-checking, so keep this
+              // episode's last verdict (switching episodes briefly reports the old episode
+              // with the new video, and that must not cancel the next-episode rule)
+              eligible: eligible == null ? (sameEpisode && !!prev.eligible) : !!eligible,
+              // Why this episode won't sync (shown in the popup), null when it will
+              reason: typeof reason === 'string' ? reason.slice(0, 200) : null,
+              // Video much shorter than MAL's episode (likely a cut version), shown in the popup
+              shortVersion: shortVersion && shortVersion.videoSeconds > 0 && shortVersion.malSeconds > 0
+                ? { videoSeconds: Number(shortVersion.videoSeconds), malSeconds: Number(shortVersion.malSeconds) }
+                : null,
               site,
               updatedAt: Date.now()
             }
@@ -626,7 +634,18 @@ chrome.runtime.onMessage.addListener((message, sender, sendResponse) => {
 
 const LENGTH_RATIO_MIN = 0.6;   // shorter than 60% of MAL's length -> not the episode
 const LENGTH_RATIO_MAX = 4;     // longer than 4x -> compilation (allows double-length specials)
+const LENGTH_RATIO_MIN_EXACT = 0.3; // when the site gave the exact MAL ID: only rule out clips
+// A counted video this much shorter than MAL's length is probably a cut version: tell the user
+const SHORT_VERSION_RATIO = 0.75;
+
+function formatMinutes(seconds) {
+  const m = seconds / 60;
+  return `${m < 10 ? Math.round(m * 10) / 10 : Math.round(m)} min`;
+}
 const MIN_SYNC_FRACTION = 0.5;
+// Sync this many seconds before the ending starts (3% of the video, within these bounds)
+const ENDING_GRACE_MIN_SECONDS = 5;
+const ENDING_GRACE_MAX_SECONDS = 15;
 const ANISKIP_API = 'https://api.aniskip.com/v2/skip-times';
 const ANISKIP_TTL_FOUND_MS = 30 * 24 * 60 * 60 * 1000;
 const ANISKIP_TTL_MISSING_MS = 3 * 24 * 60 * 60 * 1000;
@@ -677,30 +696,41 @@ async function buildSyncPlan(animeTitle, episodeNumber, duration, malId = null) 
 
   const anime = await malClient.resolveAnime(animeTitle, malId);
   if (!anime) return { available: true, eligible: false, reason: 'no confident MyAnimeList match' };
+  // Matched, but refused: still tell the popup which entry it matched
+  const refuse = (reason) => ({ available: true, eligible: false, malId: anime.id, malTitle: anime.title, reason });
 
   const info = await malClient.getAnimeInfo(anime.id);
   const singleEpisode = info.numEpisodes === 1 || info.mediaType === 'movie';
 
   let episode = parseInt(episodeNumber, 10);
   if (!(episode >= 1)) {
-    if (!singleEpisode) return { available: true, eligible: false, reason: 'no episode number on the page' };
+    if (!singleEpisode) return refuse('no episode number on the page');
     episode = 1; // movie / one-shot special
   }
   if (info.numEpisodes > 0 && episode > info.numEpisodes) {
-    return { available: true, eligible: false, reason: `${anime.title} has only ${info.numEpisodes} episodes` };
+    return refuse(`${anime.title} has only ${info.numEpisodes} episodes`);
   }
+
+  // The page itself named this exact MAL entry (or the user picked it by hand): it's the
+  // episode, not a fan edit, so only rule out clips. Sites often stream a shorter cut
+  // than MAL's length (e.g. adult scenes removed: 7 min on MAL, 3.5 min on the site),
+  // and watching that cut should still count.
+  const overrideId = await malClient.getOverride('anime', animeTitle);
+  const exactEntry = Number(malId) === anime.id || Number(overrideId) === anime.id;
+  const minRatio = exactEntry ? LENGTH_RATIO_MIN_EXACT : LENGTH_RATIO_MIN;
 
   let lengthChecked = false;
   if (info.avgDuration > 0) {
     const ratio = duration / info.avgDuration;
-    if (ratio < LENGTH_RATIO_MIN || ratio > LENGTH_RATIO_MAX) {
-      return {
-        available: true, eligible: false,
-        reason: `video is ${Math.round(duration / 60)} min but ${anime.title} episodes are ~${Math.round(info.avgDuration / 60)} min`
-      };
+    if (ratio < minRatio || ratio > LENGTH_RATIO_MAX) {
+      return refuse(`video is ${formatMinutes(duration)} but MyAnimeList says episodes are ~${formatMinutes(info.avgDuration)}`);
     }
     lengthChecked = true;
   }
+  // Counts, but much shorter than MAL's episode: the site may have cut scenes
+  const shortVersion = info.avgDuration > 0 && duration / info.avgDuration < SHORT_VERSION_RATIO
+    ? { videoSeconds: Math.round(duration), malSeconds: Math.round(info.avgDuration) }
+    : null;
 
   const { settings } = await chrome.storage.local.get('settings');
   const s = { ...DEFAULT_SETTINGS, ...(settings || {}) };
@@ -713,8 +743,11 @@ async function buildSyncPlan(animeTitle, episodeNumber, duration, malId = null) 
   }
   if (endingStart == null) endingStart = duration - estimateCreditsSeconds(duration);
 
+  // Stopping right as the ending begins must count: timestamps are a few seconds off,
+  // and people close the video when they see the credits start
+  const grace = Math.max(ENDING_GRACE_MIN_SECONDS, Math.min(ENDING_GRACE_MAX_SECONDS, duration * 0.03));
   const threshold = Math.min(100, Math.max(1, s.syncThreshold || 80)) / 100;
-  const syncAt = Math.max(duration * MIN_SYNC_FRACTION, Math.min(duration * threshold, endingStart));
+  const syncAt = Math.max(duration * MIN_SYNC_FRACTION, Math.min(duration * threshold, endingStart - grace));
 
   return {
     available: true,
@@ -727,7 +760,8 @@ async function buildSyncPlan(animeTitle, episodeNumber, duration, malId = null) 
     expectedDuration: info.avgDuration,
     endingStart: Math.round(endingStart),
     endingSource,
-    syncAt: Math.round(syncAt)
+    syncAt: Math.round(syncAt),
+    shortVersion
   };
 }
 

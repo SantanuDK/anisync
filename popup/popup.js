@@ -24,6 +24,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const playbackSite = document.getElementById('playback-site');
   const btnForceSync = document.getElementById('btn-force-sync');
   const matchText = document.getElementById('match-text');
+  const shortVersionNote = document.getElementById('short-version-note');
   const btnFixMatch = document.getElementById('btn-fix-match');
   const matchForm = document.getElementById('match-form');
   const matchInput = document.getElementById('match-input');
@@ -114,10 +115,13 @@ document.addEventListener('DOMContentLoaded', async () => {
       number: playback.episodeNumber,
       pct: playback.percentage || 0,
       // Share of the episode that actually played (skips excluded)
-      playedPct: playback.duration > 0 ? ((playback.playedSeconds || 0) / playback.duration) * 100 : null,
+      // Hidden until the detector reports it (it doesn't yet), instead of a fake "watched 0%"
+      playedPct: playback.duration > 0 && playback.playedSeconds != null ? (playback.playedSeconds / playback.duration) * 100 : null,
       site: playback.site,
       malId: playback.malId || null,
       malTitle: playback.malTitle || null,
+      reason: playback.reason || null,
+      shortVersion: playback.shortVersion || null,
       updatedAt: playback.updatedAt
     } : null;
     const manga = fresh(reading) && reading.mangaTitle ? {
@@ -160,10 +164,21 @@ document.addEventListener('DOMContentLoaded', async () => {
     playbackPercentage.title = session.kind === 'manga' ? '' : 'Position in the video · share that actually played (an episode needs 50% played to count)';
     playbackSite.textContent = session.site || (session.kind === 'manga' ? 'Manga Site' : 'Streaming Site');
 
-    matchText.textContent = session.malTitle
-      ? `MAL: ${session.malTitle}`
-      : 'Not matched on MyAnimeList yet';
+    matchText.textContent = session.reason
+      ? `${session.malTitle ? `MAL: ${session.malTitle} · ` : ''}Not syncing: ${session.reason}`
+      : session.malTitle
+        ? `MAL: ${session.malTitle}`
+        : 'Not matched on MyAnimeList yet';
     matchText.title = matchText.textContent;
+
+    const sv = session.kind === 'anime' ? session.shortVersion : null;
+    if (sv) {
+      const min = (s) => { const m = s / 60; return `${m < 10 ? Math.round(m * 10) / 10 : Math.round(m)} min`; };
+      shortVersionNote.textContent = `This site's version is ${min(sv.videoSeconds)}, MyAnimeList's is ${min(sv.malSeconds)}: ` +
+        'scenes may be cut. It still counts when you watch it.';
+    }
+    shortVersionNote.classList.toggle('hidden', !sv);
+
     if (changed) {
       matchForm.classList.add('hidden');
       matchError.classList.add('hidden');

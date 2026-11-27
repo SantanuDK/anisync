@@ -676,6 +676,14 @@ input:checked + .toggle-slider:before {
   min-width: 0;
 }
 
+/* "This site's version is shorter than MyAnimeList's" */
+.short-version-note {
+  font-size: 10px;
+  line-height: 1.4;
+  color: var(--warning);
+  margin: -4px 0 8px;
+}
+
 .match-line .setting-desc {
   overflow: hidden;
   text-overflow: ellipsis;
