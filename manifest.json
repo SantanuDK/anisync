@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "AniSync - MyAnimeList Auto Tracker",
-  "version": "1.1.0",
+  "version": "1.2.0",
   "description": "Automatically detects the anime and episode you are watching on streaming sites and syncs your progress to MyAnimeList.",
   "key": "MIIBIjANBgkqhkiG9w0BAQEFAAOCAQ8AMIIBCgKCAQEAqVmqP4d1B08ReO/YTenb4tgJvvl0b4nDP2RPgcMkUPw+aD1Jq4rif6wilbeE8Rc5b5XSZJ6FmW5/tPc7M/hn1kxSfIL18uUDsodX7aZ7FYakQCNcZdREMbAqm+DVyiNqegjK4jdO63PL020v1RJqK9H04UY7E4eQMJHC8JZUJKeIMemjadmoUKGICHDY7ULc64GyUE2BnTnc4Jgxby6HPH9GBK9lcsUfawJpENnCzWOVGLY+eGB9CXneO4W4rWiONpuQ8UpuOtwkIsKIycVk4LCT0Sa/ieO5f6BDjKlcETjmGfVIA/K7c2rpVC2Fe3bWEbQnkU5QeVGyWR9a0PhEPQIDAQAB",
   "icons": {

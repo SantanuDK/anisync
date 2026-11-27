@@ -22,6 +22,46 @@
   const IFRAME_THROTTLE_MS = 2000;
   const SYNC_RETRY_MS = 60 * 1000;
 
+  // ---------- Extension reloaded / updated ----------
+  //
+  // Reloading or updating the extension leaves this copy running in tabs that were
+  // already open, cut off from the extension. Chrome then throws straight away
+  // ("Extension context invalidated") instead of rejecting, so .catch() never sees it.
+  // send() turns that into a normal rejection, and the first time it happens this
+  // copy shuts itself down (the page needs a refresh to be tracked again).
+  let orphaned = false;
+  const cleanups = [];
+
+  function shutDown() {
+    if (orphaned) return;
+    orphaned = true;
+    for (const fn of cleanups.splice(0)) {
+      try { fn(); } catch (_) {}
+    }
+  }
+
+  function send(message) {
+    let alive = false;
+    try { alive = !!chrome.runtime?.id; } catch (_) {}
+    if (orphaned || !alive) {
+      shutDown();
+      return Promise.reject(new Error('AniSync was reloaded; refresh the page'));
+    }
+    try {
+      return chrome.runtime.sendMessage(message);
+    } catch (err) {
+      shutDown();
+      return Promise.reject(err);
+    }
+  }
+
+  // setInterval that stops when this copy shuts down
+  function every(ms, fn) {
+    const id = setInterval(() => { if (!orphaned) fn(); }, ms);
+    cleanups.push(() => clearInterval(id));
+    return id;
+  }
+
   let activeVideo = null;
   let detachVideo = null;
   let customRules = [];
@@ -278,6 +318,11 @@
       }, 1000);
     });
     observer.observe(document.documentElement, { childList: true, subtree: true });
+    cleanups.push(() => {
+      observer.disconnect();
+      clearTimeout(pending);
+      if (detachVideo) detachVideo();
+    });
   }
 
   // ---------- Player iframe mode ----------
@@ -288,7 +333,7 @@
       const now = Date.now();
       if (!progress.isFinished && now - lastSent < IFRAME_THROTTLE_MS) return;
       lastSent = now;
-      chrome.runtime.sendMessage({ type: 'IFRAME_PROGRESS', data: progress }).catch(() => {});
+      send({ type: 'IFRAME_PROGRESS', data: progress }).catch(() => {});
     });
   }
 
@@ -365,7 +410,7 @@
       planState = 'pending';
       plan = null;
 
-      chrome.runtime.sendMessage({
+      send({
         type: 'GET_SYNC_PLAN',
         data: { animeTitle: meta.title, episodeNumber: meta.episode, malId: meta.malId, duration }
       }).then((res) => {
@@ -387,6 +432,7 @@
     }
 
     function handleProgress(progress) {
+      if (orphaned) return;
       const { percentage, currentTime, duration, isFinished } = progress;
       // A different video (next episode): re-read the page now instead of waiting for the
       // 2.5s refresh, so the new video's progress isn't credited to the old episode
@@ -413,7 +459,7 @@
       const showStatus = !titleOnly || (ready && plan.eligible);
       if (showStatus && (isFinished || now - lastStatusSent >= STATUS_THROTTLE_MS)) {
         lastStatusSent = now;
-        chrome.runtime.sendMessage({
+        send({
           type: 'UPDATE_PLAYBACK_STATUS',
           data: {
             animeTitle: meta.title,
@@ -455,7 +501,7 @@
       const why = ready ? `reached ${plan.endingSource === 'aniskip' ? 'ending (AniSkip)' : 'sync point'} at ${Math.round(currentTime)}s` : `${percentage}%`;
       console.log(`[AniSync] Syncing "${meta.title}" Episode ${episode} (${why})...`);
 
-      chrome.runtime.sendMessage({
+      send({
         type: 'SYNC_EPISODE',
         data: { animeTitle: meta.title, episodeNumber: episode, malId: meta.malId }
       }).then((res) => {
@@ -477,7 +523,7 @@
     }
 
     refreshMeta();
-    setInterval(refreshMeta, 2500);
+    every(2500, refreshMeta);
 
     // Progress relayed by the background from this tab's player iframes
     chrome.runtime.onMessage.addListener((message) => {
@@ -809,7 +855,7 @@
       const forMeta = meta;
       planState = 'pending';
       plan = null;
-      chrome.runtime.sendMessage({
+      send({
         type: 'GET_MANGA_PLAN',
         data: { mangaTitle: forMeta.title, chapterNumber: forMeta.chapter, malId: forMeta.malId }
       }).then((res) => {
@@ -851,7 +897,7 @@
       const now = Date.now();
       if (!force && now - lastStatusSent < READING_STATUS_MS) return;
       lastStatusSent = now;
-      chrome.runtime.sendMessage({
+      send({
         type: 'UPDATE_READING_STATUS',
         data: {
           mangaTitle: meta.title,
@@ -876,7 +922,7 @@
       syncState = 'pending';
       const syncedMeta = meta;
       console.log(`[AniSync] Syncing "${meta.title}" chapter ${meta.chapter} (reached the end)...`);
-      chrome.runtime.sendMessage({
+      send({
         type: 'SYNC_CHAPTER',
         data: { mangaTitle: meta.title, chapterNumber: meta.chapter, malId: plan.malId || meta.malId }
       }).then((res) => {
@@ -898,7 +944,7 @@
     }
 
     // Once a second: count active reading time, track progress, maybe sync
-    setInterval(() => {
+    every(1000, () => {
       refresh();
       if (!meta) return;
       const visible = document.visibilityState === 'visible';
@@ -943,7 +989,7 @@
       if (settings?.trackManga !== false && isSupportedHost(host, mangaDomains)) startMangaReader();
     }).catch(() => {});
   } else {
-    chrome.runtime.sendMessage({ type: 'FRAME_HELLO' }).then((res) => {
+    send({ type: 'FRAME_HELLO' }).then((res) => {
       if (res?.active) startIframe();
     }).catch(() => {});
   }

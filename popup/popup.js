@@ -48,6 +48,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   // What the current session card shows: the latest of the anime being watched and
   // the manga being read. { kind: 'anime'|'manga', title, number, pct, site, malId, malTitle }
   let currentSession = null;
+  // Host of the active tab: the session card only shows what's playing / being read
+  // on this site. undefined = not known yet, null = not a web page (nothing shown)
+  let tabHost;
   let latestPlayback = null;
   let latestReading = null;
 
@@ -110,7 +113,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   const SESSION_FRESH_MS = 15 * 60 * 1000;
 
   function toSession(playback, reading) {
-    const fresh = (x) => x && x.updatedAt && Date.now() - x.updatedAt < SESSION_FRESH_MS;
+    // Same site as the active tab (www. ignored; a subdomain of either side counts)
+    const onThisTab = (x) => {
+      const site = normalizeHost(x.site);
+      return !!tabHost && !!site &&
+        (site === tabHost || site.endsWith('.' + tabHost) || tabHost.endsWith('.' + site));
+    };
+    const fresh = (x) => x && x.updatedAt && Date.now() - x.updatedAt < SESSION_FRESH_MS && onThisTab(x);
     const anime = fresh(playback) && playback.animeTitle ? {
       kind: 'anime',
       title: playback.animeTitle,
@@ -625,6 +634,8 @@ document.addEventListener('DOMContentLoaded', async () => {
 
     siteCtx = host ? { tabId: tab.id, host, frames: siteCtx?.host === host ? siteCtx.frames : [] } : null;
     renderSite();
+    tabHost = host;
+    updateSessionUI();
 
     // Look for the player iframe up front, so the click handler can request
     // permission immediately (permission prompts need a direct user click)
@@ -703,6 +714,9 @@ document.addEventListener('DOMContentLoaded', async () => {
   });
 
   initSite();
+
+  // Version from the manifest, so the footer can't fall behind a release
+  document.getElementById('app-version').textContent = `AniSync v${chrome.runtime.getManifest().version}`;
 
   // Initial load
   init();

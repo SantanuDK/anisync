@@ -120,6 +120,8 @@ Turn it off with **Preferences → Track Manga**.
 
 ## 🎯 How Detection Works
 
+- The popup's **Current Session** card only shows the episode or chapter from the site in your active tab; switch to another site and it shows nothing until you start watching or reading there.
+
 - The detector only activates on **supported streaming domains** (the Cloudflare list, with a bundled `cloudflare-worker/sites.json` fallback).
 - Player iframes on any embed domain report progress only when their tab is a supported site, relayed through the extension so pages can't fake it.
 - Videos shorter than 2 minutes (ads, previews) never trigger a sync.
