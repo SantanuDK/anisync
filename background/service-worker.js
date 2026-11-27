@@ -23,7 +23,9 @@ const DEFAULT_SETTINGS = {
   useAniSkip: true,
   trackManga: true,
   // Off by default: marks Rewatching / Rereading on MAL and counts finished rewatches
-  trackRewatches: false
+  trackRewatches: false,
+  // On by default: episodes the site shortened (e.g. adult scenes cut) still count
+  syncShortVersions: true
 };
 
 // ---------- Supported site list ----------
@@ -734,6 +736,10 @@ async function buildSyncPlan(animeTitle, episodeNumber, duration, malId = null) 
 
   const { settings } = await chrome.storage.local.get('settings');
   const s = { ...DEFAULT_SETTINGS, ...(settings || {}) };
+  // Preferences -> Sync Shortened Episodes turned off: a cut version doesn't count
+  if (shortVersion && s.syncShortVersions === false) {
+    return refuse(`this site's version is shortened (${formatMinutes(duration)} of ~${formatMinutes(info.avgDuration)}) and syncing shortened episodes is off`);
+  }
 
   let endingStart = null;
   let endingSource = 'estimate';

@@ -312,8 +312,11 @@
       if (Array.isArray(changes.dynamic_site_rules?.newValue)) {
         customRules = changes.dynamic_site_rules.newValue;
       }
-      // The user fixed the match in the popup: plan again with the new MAL entry
-      if (changes.match_overrides) {
+      // The user fixed the match in the popup, or changed a setting the plan depends on:
+      // plan again
+      const s = changes.settings;
+      const planSettingChanged = !!s && s.oldValue?.syncShortVersions !== s.newValue?.syncShortVersions;
+      if (changes.match_overrides || planSettingChanged) {
         resetPlan();
         if (lastProgress) handleProgress(lastProgress);
       }
@@ -330,6 +333,14 @@
         syncState = 'idle';
         retryAt = 0;
         resetPlan();
+      } else if (meta.malId && currentMeta.malId !== meta.malId) {
+        // Same episode, but the MAL ID only appeared now: many sites load the episode
+        // list (which carries data-mal) after the page. Plan again with the exact entry,
+        // but keep the sync state so an episode already synced isn't sent again.
+        // (Updated in place: a sync in flight checks it's still the same episode object)
+        currentMeta.malId = meta.malId;
+        resetPlan();
+        if (lastProgress) handleProgress(lastProgress);
       }
       return currentMeta;
     }

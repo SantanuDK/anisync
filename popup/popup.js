@@ -42,6 +42,7 @@ document.addEventListener('DOMContentLoaded', async () => {
   const toggleAniSkip = document.getElementById('toggle-aniskip');
   const toggleManga = document.getElementById('toggle-manga');
   const toggleRewatch = document.getElementById('toggle-rewatch');
+  const toggleShortVersions = document.getElementById('toggle-short-versions');
   const btnClearCache = document.getElementById('btn-clear-cache');
 
   // What the current session card shows: the latest of the anime being watched and
@@ -102,6 +103,7 @@ document.addEventListener('DOMContentLoaded', async () => {
       toggleAniSkip.checked = settings.useAniSkip !== false;
       toggleManga.checked = settings.trackManga !== false;
       toggleRewatch.checked = settings.trackRewatches === true;
+      toggleShortVersions.checked = settings.syncShortVersions !== false;
     }
   }
 
@@ -164,20 +166,24 @@ document.addEventListener('DOMContentLoaded', async () => {
     playbackPercentage.title = session.kind === 'manga' ? '' : 'Position in the video · share that actually played (an episode needs 50% played to count)';
     playbackSite.textContent = session.site || (session.kind === 'manga' ? 'Manga Site' : 'Streaming Site');
 
-    matchText.textContent = session.reason
-      ? `${session.malTitle ? `MAL: ${session.malTitle} · ` : ''}Not syncing: ${session.reason}`
-      : session.malTitle
-        ? `MAL: ${session.malTitle}`
-        : 'Not matched on MyAnimeList yet';
+    // The match line is one line cut off with "…" (MAL titles are often long), so
+    // anything the user must see goes on the note line below it instead
+    matchText.textContent = session.malTitle
+      ? `MAL: ${session.malTitle}`
+      : 'Not matched on MyAnimeList yet';
     matchText.title = matchText.textContent;
 
     const sv = session.kind === 'anime' ? session.shortVersion : null;
-    if (sv) {
+    let note = '';
+    if (session.reason) {
+      note = `Not syncing: ${session.reason}.`;
+    } else if (sv) {
       const min = (s) => { const m = s / 60; return `${m < 10 ? Math.round(m * 10) / 10 : Math.round(m)} min`; };
-      shortVersionNote.textContent = `This site's version is ${min(sv.videoSeconds)}, MyAnimeList's is ${min(sv.malSeconds)}: ` +
-        'scenes may be cut. It still counts when you watch it.';
+      note = `This site's version is ${min(sv.videoSeconds)}, MyAnimeList's is ${min(sv.malSeconds)}: ` +
+        'scenes may be cut. It still counts when you watch it (Preferences → Sync Shortened Episodes).';
     }
-    shortVersionNote.classList.toggle('hidden', !sv);
+    shortVersionNote.textContent = note;
+    shortVersionNote.classList.toggle('hidden', !note);
 
     if (changed) {
       matchForm.classList.add('hidden');
@@ -428,6 +434,13 @@ document.addEventListener('DOMContentLoaded', async () => {
   toggleRewatch.addEventListener('change', async (e) => {
     const { settings = {} } = await chrome.storage.local.get('settings');
     settings.trackRewatches = e.target.checked;
+    await chrome.storage.local.set({ settings });
+  });
+
+  // Count episodes the site shortened (e.g. scenes cut)
+  toggleShortVersions.addEventListener('change', async (e) => {
+    const { settings = {} } = await chrome.storage.local.get('settings');
+    settings.syncShortVersions = e.target.checked;
     await chrome.storage.local.set({ settings });
   });
 
